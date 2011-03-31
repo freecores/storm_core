@@ -29,7 +29,7 @@ port	(
 				MEM_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_ADR_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_BP_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
-				
+
 				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				
@@ -37,7 +37,7 @@ port	(
 -- ##			Forwarding Path                                                                     ##
 -- ###############################################################################################
 
-				LDST_FW_OUT	: out STD_LOGIC_VECTOR(36 downto 0);
+				LDST_FW_OUT	: out STD_LOGIC_VECTOR(40 downto 0);
 
 -- ###############################################################################################
 -- ##			External Memory Interface                                                           ##
@@ -52,13 +52,13 @@ port	(
 		);
 end LOAD_STORE_UNIT;
 
-
 architecture LOAD_STORE_UNIT_STRUCTURE of LOAD_STORE_UNIT is
 
 	-- local signals --
 	signal	DATA_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
 	signal	ADR_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
-	signal	BP				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	BP_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
+	signal	BP_TEMP		: STD_LOGIC_VECTOR(31 downto 0);
 
 begin
 
@@ -70,23 +70,37 @@ begin
 				if (RES = '1') then
 					DATA_BUFFER <= (others => '0');
 					ADR_BUFFER  <= (others => '0');
-					BP			   <= (others => '0');
+					BP_BUFFER   <= (others => '0');
 				else
 					DATA_BUFFER <= MEM_DATA_IN;	-- Memory write data buffer
 					ADR_BUFFER  <= MEM_ADR_IN;		-- Memory adress buffer
-					BP			   <= MEM_BP_IN;		-- Memory bypass buffer
+					BP_BUFFER   <= MEM_BP_IN;		-- Memory bypass buffer
 				end if;
 			end if;
 		end process MEM_BUFFER;
 
 
+	-- Bypass Multiplexer ---------------------------------------------------------------------
+	-- -------------------------------------------------------------------------------------------
+		BP_MUX: process(CTRL_IN, BP_BUFFER, DATA_BUFFER)
+		begin
+			if (CTRL_IN(CTRL_LINK) = '0') then
+				BP_TEMP <= DATA_BUFFER;
+			else
+				BP_TEMP <= BP_BUFFER;
+			end if;
+		end process BP_MUX;
+		
+		BP_OUT <= BP_TEMP;
+
+
 	-- Forwarding CTRL Path -------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		LDST_FW_OUT(FWD_RD_3 downto FWD_RD_0) <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
+		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB) <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
 		LDST_FW_OUT(FWD_WB) <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
 
 
-	-- Forwarding Data Path -------------------------------------------------------------------
+	-- Forwarding DATA Path -------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
 		MEM_FORWARD_MUX: process(CTRL_IN(CTRL_MEM_ACC), CTRL_IN(CTRL_MEM_RW))
 		begin
@@ -94,20 +108,20 @@ begin
 			if (CTRL_IN(CTRL_MEM_ACC) = '1') and (CTRL_IN(CTRL_MEM_RW) = '0') then
 				LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= XMEM_RD_DTA;
 			else -- register/mcr read access
-				LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP;
+				LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
 			end if;
 		end process MEM_FORWARD_MUX;
 	
 
 	-- Output Data Alignment ------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		WRITE_DATA_ALIGN: process(CTRL_IN(CTRL_MEM_M), DATA_BUFFER)
+		WRITE_DATA_ALIGN: process(CTRL_IN(CTRL_MEM_M), BP_BUFFER)
 		begin
 			if (CTRL_IN(CTRL_MEM_M) = '0') then -- Word Transfer
-				XMEM_WR_DTA <= DATA_BUFFER;
+				XMEM_WR_DTA <= BP_BUFFER;
 			else -- Byte Transfer
-				XMEM_WR_DTA <= DATA_BUFFER(7 downto 0) & DATA_BUFFER(7 downto 0) &
-									DATA_BUFFER(7 downto 0) & DATA_BUFFER(7 downto 0);
+				XMEM_WR_DTA <= BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0) &
+									BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0);
 			end if;
 		end process WRITE_DATA_ALIGN;
 
@@ -157,11 +171,6 @@ begin
 		
 		-- address word --
 		XMEM_ADR  <= ADR_BUFFER;
-
-
-	-- Bypass Output --------------------------------------------------------------------------
-	-- -------------------------------------------------------------------------------------------
-		BP_OUT <= BP;
 
 
 

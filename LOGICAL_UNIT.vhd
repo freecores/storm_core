@@ -44,55 +44,54 @@ begin
 
 	-- Logical Unit ----------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-	LOGICAL_CORE: process(CTRL, OP_A, OP_B, L_CARRY_IN)
-	begin
-		case(LOGICAL_OP & CTRL) is -- ALU_FS
+		LOGICAL_CORE: process(CTRL, OP_A, OP_B, L_CARRY_IN)
+		begin
+			case(LOGICAL_OP & CTRL) is -- ALU_FS
 
-			-- AND: result = OP_A AND OP_B -- 
-			when L_AND =>
-				RESULT_TMP <= OP_A and OP_B;
+				-- AND: result = OP_A AND OP_B -- 
+				when L_AND =>
+					RESULT_TMP <= OP_A and OP_B;
 
-			-- OR: result = OP_A OR OP_B --
-			when L_OR =>
-				RESULT_TMP <= OP_A or OP_B;
+				-- OR: result = OP_A OR OP_B --
+				when L_OR =>
+					RESULT_TMP <= OP_A or OP_B;
 
-			-- XOR: result = OP_A XOR OP_B --
-			when L_XOR =>
-				RESULT_TMP <= OP_A xor OP_B;
+				-- XOR: result = OP_A XOR OP_B --
+				when L_XOR =>
+					RESULT_TMP <= OP_A xor OP_B;
 
-			-- NOT: result = not(OP_A AND OP_B) --
-			when L_NOT =>
-				if (STORM_MODE = TRUE) then
-					RESULT_TMP <= not(OP_A and OP_B);
-				else
-					RESULT_TMP <= not OP_B; -- ARM_OP: MVN
-				end if;
+				-- NOT: result = not(OP_A AND OP_B) --
+				when L_NOT =>
+					if (STORM_MODE = TRUE) then
+						RESULT_TMP <= not(OP_A and OP_B);
+					else
+						RESULT_TMP <= not OP_B; -- ARM_OP: MVN
+					end if;
 
-			-- BIC: result = OP_A and (not OP_B) --
-			when L_BIC =>
-				RESULT_TMP <= OP_A and (not OP_B);
+				-- BIC: result = OP_A and (not OP_B) --
+				when L_BIC =>
+					RESULT_TMP <= OP_A and (not OP_B);
 
-			-- MOV: result = OP_B --
-			when L_MOV =>
-				RESULT_TMP <= OP_B; -- boring, huh?
+				-- MOV: result = OP_B --
+				when L_MOV =>
+					RESULT_TMP <= OP_B; -- boring, huh?
 
-			-- TST: result = OP_B, compares by F = OP_A and OP_B --
-			when L_TST =>
-				RESULT_TMP <= OP_B;
+				-- TST: result = OP_B, compares by F = OP_A and OP_B --
+				when L_TST =>
+					RESULT_TMP <= OP_B;
+					
+				-- TEQ:  result = OP_A, compares by F = OP_A xor OP_B --
+				when L_TEQ =>
+					RESULT_TMP <= OP_A;
 				
-			-- TEQ:  result = OP_A, compares by F = OP_A xor OP_B --
-			when L_TEQ =>
-				RESULT_TMP <= OP_A;
-			
-			-- Undefined --
-			when others =>
-				RESULT_TMP <= (others => '-');
+				-- Undefined --
+				when others =>
+					RESULT_TMP <= (others => '-');
 
-		end case;
-	end process LOGICAL_CORE;
-	
-	RESULT <= RESULT_TMP ;
-	
+			end case;
+		end process LOGICAL_CORE;
+		
+		RESULT <= RESULT_TMP;
 	
 
 

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #        ARM7-Compatible OPCODE Decoding Unit         #
 -- # *************************************************** #
--- # Version 2.4, 18.03.2011                             #
+-- # Version 2.4.1, 18.03.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -85,99 +85,112 @@ begin
 		NEXT_DUAL_OP										<= (others => '0');
 
 
-		if (EXECUTE_INT_IN = '1') and (DUAL_OP = "00000") then -- execute interrupt
-		------------------------------------------------------------------------------------
+		if (EXECUTE_INT_IN = '1') and (DUAL_OP = "00000") then -- EXECUTE INTERRUPT
+		-- ===================================================================================
 			DEC_CTRL(CTRL_BRANCH)	<= '1'; -- BRANCH_INSTR
 			DEC_CTRL(CTRL_LINK)		<= '1'; -- LINK
 			DEC_CTRL(CTRL_CONST)		<= '1'; -- IS_CONST
 			DEC_CTRL(CTRL_WB_EN)		<= '1'; -- WB EN
 			IMM_OUT						<= x"000000" & "000" & INT_VECTOR_IN; -- IMM = INT_ADR
 			DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= PassB; -- direct ALU_CTRL = PassB
-			DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0)		<= COND_AL; -- force enable = ALWAYS
+			DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0)		<= COND_AL; -- force condition = ALWAYS
 
 
 		else case INSTR_REG(27 downto 26) is
 		
-				when "00" => -- DATA PROCESSING / SREG ACCESS
+				when "00" => -- ALU DATA PROCESSING / SREG ACCESS / MUL(MAC)
 					-- ===================================================================================
 						DEC_CTRL(CTRL_AF)									<= INSTR_REG(20); -- ALTER_FLAGS
 						DEC_CTRL(CTRL_WB_EN)								<= '1'; -- WB_ENABLE
 						DEC_CTRL(CTRL_CONST)								<= INSTR_REG(25); -- IS_CONST
-						DEC_CTRL(CTRL_MREG_M)							<= INSTR_REG(22); -- SREG/SMSR access
+						DEC_CTRL(CTRL_MREG_M)							<= INSTR_REG(22); -- CMSR/SMSR access
 						DEC_CTRL(CTRL_MREG_RW)							<= INSTR_REG(21); -- read/write access
 						DEC_CTRL(CTRL_MREG_FA)							<= not INSTR_REG(16); -- only flag access?
-							
-						if (INSTR_REG(25) = '1') then -- IS_CONST
-							SHIFT_C_OUT					<= INSTR_REG(11 downto 08) & '0'; -- SHIFT_POS x2
-							SHIFT_M_OUT					<= S_LSL; -- SHIFT MODE = LSL
-							IMM_OUT(6 downto 0)		<= INSTR_REG(06 downto 00); -- IMMEDIATE
-							for i in 7 to 31 loop
-								IMM_OUT(i)				<= INSTR_REG(07); -- FILL WITH SIGN
-							end loop;
-							DEC_CTRL(CTRL_SHIFTR)	<= '0'; -- SHIFT WITH IMMEDIATE
-								
-						elsif (INSTR_REG(04) = '0') then -- shift REG_B direct
-							SHIFT_C_OUT					<= INSTR_REG(11 downto 07); -- SHIFT POS
-							SHIFT_M_OUT					<= INSTR_REG(06 downto 05); -- SHIFT MODE
-							IMM_OUT						<= (others => '-'); -- IMMEDIATE
-							DEC_CTRL(CTRL_SHIFTR)	<= '0'; -- SHIFT_REG
-								
-						else -- shift REG_B with REG_C
-							SHIFT_C_OUT					<= (others => '-'); -- SHIFT POS
-							SHIFT_M_OUT					<= INSTR_REG(06 downto 05); -- SHIFT MODE
-							IMM_OUT						<= (others => '-'); -- IMMEDIATE
-							DEC_CTRL(CTRL_SHIFTR)	<= '1'; -- SHIFT_REG
-						end if;
-							
-						case (INSTR_REG(24 downto 21)) is -- ALU FUNCTION SET
-							when "0000" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_AND;
-							when "0001" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_XOR;
-							when "0010" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB;
-							when "0011" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_RSB;
-							when "0100" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
-							when "0101" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADC;
-							when "0110" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SBC;
-							when "0111" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_RSC;
+						
+						if ((INSTR_REG(27 downto 22) = "000000") and (INSTR_REG(7 downto 4) = "1001")) then
+							DEC_CTRL(CTRL_MS) <= '1'; -- select multiplicator
+							DEC_CTRL(CTRL_RD_3    downto  CTRL_RD_0) <= INSTR_REG(19 downto 16);
+							OP_ADR_OUT(OP_A_ADR_3 downto OP_A_ADR_0) <= INSTR_REG(15 downto 12);
+							if (INSTR_REG(21) = '1') then -- perform MAC operation
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
+							else -- perform MUL operation
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB;
+							end if;
 
-							-- ALU-Operations / MCR Access --
-							when "1000" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_TST; -- read SREG
-												DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
-												if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
-													DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
-													DEC_CTRL(CTRL_WB_EN)    <= '1'; -- re-enable register write back
-												end if;
+						else -- ALU operation / MCR access
+							if (INSTR_REG(25) = '1') then -- IS_CONST
+								SHIFT_C_OUT					<= INSTR_REG(11 downto 08) & '0'; -- SHIFT_POS x2
+								SHIFT_M_OUT					<= S_LSL; -- SHIFT MODE = LSL
+								IMM_OUT(6 downto 0)		<= INSTR_REG(06 downto 00); -- IMMEDIATE
+								for i in 7 to 31 loop
+									IMM_OUT(i)				<= INSTR_REG(07); -- FILL WITH SIGN
+								end loop;
+								DEC_CTRL(CTRL_SHIFTR)	<= '0'; -- SHIFT WITH IMMEDIATE
+									
+							elsif (INSTR_REG(04) = '0') then -- shift REG_B direct
+								SHIFT_C_OUT					<= INSTR_REG(11 downto 07); -- SHIFT POS
+								SHIFT_M_OUT					<= INSTR_REG(06 downto 05); -- SHIFT MODE
+								IMM_OUT						<= (others => '-'); -- IMMEDIATE
+								DEC_CTRL(CTRL_SHIFTR)	<= '0'; -- SHIFT_REG
+									
+							else -- shift REG_B with REG_C
+								SHIFT_C_OUT					<= (others => '-'); -- SHIFT POS
+								SHIFT_M_OUT					<= INSTR_REG(06 downto 05); -- SHIFT MODE
+								IMM_OUT						<= (others => '-'); -- IMMEDIATE
+								DEC_CTRL(CTRL_SHIFTR)	<= '1'; -- SHIFT_REG
+							end if;
 
-							when "1001" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_TEQ; -- write SREG
-												DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
-												if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
-													DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB; -- write SREG
-													DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
-												end if;
+							case (INSTR_REG(24 downto 21)) is -- ALU FUNCTION SET
+								when "0000" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_AND;
+								when "0001" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_XOR;
+								when "0010" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB;
+								when "0011" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_RSB;
+								when "0100" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
+								when "0101" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADC;
+								when "0110" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SBC;
+								when "0111" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_RSC;
 
-							when "1010" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_CMP; -- read SMSR
-												DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
-												if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
-													DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
-													DEC_CTRL(CTRL_WB_EN)    <= '1'; -- re-enable register write back
-												end if;
+								-- ALU-Operations / MCR Access --
+								when "1000" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_TST; -- read SREG
+													DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
+													if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
+														DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
+														DEC_CTRL(CTRL_WB_EN)    <= '1'; -- re-enable register write back
+													end if;
 
-							when "1011" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_CMN; -- write SMSR
-												DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
-												if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
-													DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB; -- write SREG
-													DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
-												end if;
+								when "1001" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_TEQ; -- write SREG
+													DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
+													if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
+														DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB; -- write SREG
+														DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
+													end if;
 
-							when "1100" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_OR;
-							when "1101" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_MOV;
-							when "1110" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_BIC;
-							when "1111" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_NOT;
-							when others => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= "----";
-						end case;
+								when "1010" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_CMP; -- read SREG
+													DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
+													if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
+														DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
+														DEC_CTRL(CTRL_WB_EN)    <= '1'; -- re-enable register write back
+													end if;
+
+								when "1011" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_CMN; -- write SREG
+													DEC_CTRL(CTRL_WB_EN)       <= '0'; -- disable register write back
+													if (INSTR_REG(20) = '0') then -- ALTER FLAGS ?
+														DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB; -- write SREG
+														DEC_CTRL(CTRL_MREG_ACC)	<= '1'; -- access MREG
+													end if;
+
+								when "1100" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_OR;
+								when "1101" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_MOV;
+								when "1110" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_BIC;
+								when "1111" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_NOT;
+								when others => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= (others => '-');
+							end case;
+
+							end if;
 					
 
 
-				when "01" => -- UDI / SINGLE MEMORY ACCESS
+				when "01" => -- UNDEFINED INSTRUCTION INTERRUPT / SINGLE MEMORY ACCESS
 				-- ============================================================================================
 					if (INSTR_REG(25) = '1') and (INSTR_REG(4) = '1') then
 						DEC_CTRL(CTRL_UND) <= '1'; --undefined instruction
@@ -351,13 +364,13 @@ begin
 			
 				when "10" => -- BRANCH OPERATIONS
 					-- ============================================================================================
-						DEC_CTRL(CTRL_LINK)									<= INSTR_REG(24); -- LINK
-						DEC_CTRL(CTRL_WB_EN)									<= INSTR_REG(24); -- WB EN
-						DEC_CTRL(CTRL_CONST)									<= '1';	-- IS_CONST
-						DEC_CTRL(CTRL_BRANCH)								<= '1'; -- BRANCH_INSTR
+						DEC_CTRL(CTRL_LINK)   <= INSTR_REG(24); -- LINK
+						DEC_CTRL(CTRL_WB_EN)  <= INSTR_REG(24); -- WB EN
+						DEC_CTRL(CTRL_CONST)  <= '1'; -- IS_CONST
+						DEC_CTRL(CTRL_BRANCH) <= '1'; -- BRANCH_INSTR
 						DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= A_ADD; -- ALU.ADD
-						IMM_OUT(22 downto 0) <= INSTR_REG(22 downto 0); -- IMMEDIATE
-						for i in 23 to 31 loop
+						IMM_OUT(23 downto 0)  <= INSTR_REG(23 downto 0);-- & "00"; -- OFFSET = IMMEDIATE x 4
+						for i in 24 to 31 loop
 							IMM_OUT(i) <= INSTR_REG(22); -- IMMEDIATE sign extension
 						end loop;
 

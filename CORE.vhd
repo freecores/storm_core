@@ -9,8 +9,10 @@
 -- #   - RES_SYNC.vhd                             #
 -- #   - REG_FILE.vhd                             #
 -- #   - OPERANT_UNIT.vhd                         #
--- #   - ALU.vhd                                  #
+-- #   - MS_UNIT.vhd                              #
+-- #     - MULTIPLICATION_UNIT.vhd                #
 -- #     - BARREL_SHIFTER.vhd                     #
+-- #   - ALU.vhd                                  #
 -- #     - ARITHMETICAL_UNIT.vhd                  #
 -- #     - LOGICAL_UNIT.vhd                       #
 -- #   - FLOW_CTRL.vhd                            #
@@ -91,6 +93,13 @@ architecture CORE_STRUCTURE of CORE is
 	signal	MCR_DTA_WR			: STD_LOGIC_VECTOR(31 downto 0);
 	signal	IMMEDIATE			: STD_LOGIC_VECTOR(31 downto 0);
 	signal	OP_ADR				: STD_LOGIC_VECTOR(11 downto 0);
+	signal	MS_CTRL				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	BP_MS					: STD_LOGIC_VECTOR(31 downto 0);
+	signal	OP_A_MS				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	OP_B_MS				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	MS_CARRY				: STD_LOGIC;
+	signal	MS_OVFL				: STD_LOGIC;
+	signal	MS_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0);
 
 	-- ###############################################################################################
 	-- ##			GLOBAL SIGNALS FOR ALL STAGES                                                       ##
@@ -99,7 +108,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal	gCLK					: STD_LOGIC; -- global clock line
 	signal	gRES					: STD_LOGIC; -- global reset line
 	signal	INT_EXECUTE			: STD_LOGIC; -- execute interrupt
-	signal	INT_VECTOR_BUS		: STD_LOGIC_VECTOR(04 downto 0); -- interrupt address
+	signal	STALLS				: STD_LOGIC_VECTOR(02 downto 0); -- number of bubbles
 
 	-- ###############################################################################################
 	-- ##			SIGNALS FOR PIPELINE STAGE 1: OPERAND FETCH / INSTRUCITON DECODE                    ##
@@ -109,7 +118,6 @@ architecture CORE_STRUCTURE of CORE is
 	signal	OF_OP_A				: STD_LOGIC_VECTOR(31 downto 0); -- operant A
 	signal	OF_OP_B				: STD_LOGIC_VECTOR(31 downto 0); -- operant B
 	signal	OF_OP_C				: STD_LOGIC_VECTOR(31 downto 0); -- operant C
-	signal	OP_CONF_HALT		: STD_LOGIC; -- HALT-signal for mem-read-conflict
 	signal	PC_HALT				: STD_LOGIC; -- halt program counter
 	signal	OF_OP_A_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- operand A output
 	signal	OF_OP_B_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- operand B output
@@ -127,7 +135,11 @@ architecture CORE_STRUCTURE of CORE is
 	signal	EX1_CTRL				: STD_LOGIC_VECTOR(31 downto 0); -- EX stage control lines
 	signal	EX_BP1_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- bypass 1 register
 	signal	EX_ALU_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- alu result output
-	signal	ALU_FW_PATH			: STD_LOGIC_VECTOR(38 downto 0); -- alu forwarding path
+	signal	ALU_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0); -- alu forwarding path
+	
+	signal	EX_BP_OUT			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	EX_ADR_OUT			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	EX_RES_OUT			: STD_LOGIC_VECTOR(31 downto 0);
 
 	-- ###############################################################################################
 	-- ##			SIGNALS FOR PIPELINE STAGE 3: MEMORY ACCESS                                         ##
@@ -137,7 +149,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal	MEM_DATA				: STD_LOGIC_VECTOR(31 downto 0);
 	signal	MEM_DTA_OUT       : STD_LOGIC_VECTOR(31 downto 0); -- mem.data and bp2 register
 	signal	MEM_BP_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- mem.data and bp2 register
-	signal	MEM_FW_PATH			: STD_LOGIC_VECTOR(36 downto 0); -- memory forwarding path
+	signal	MEM_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding path
 	signal	SHIFT_VAL_BUFF		: STD_LOGIC_VECTOR(04 downto 0);
 	signal	PC_1, PC_2			: STD_LOGIC_VECTOR(31 downto 0); -- delayed/current program counter
 	
@@ -189,26 +201,26 @@ begin
 						OPCODE_DATA_OUT  => OP_DATA,				-- instruction register output
 						OPCODE_CTRL_IN	  => OPC_B,					-- control lines input
 						OPCODE_CTRL_OUT  => OPC_A,					-- control feedback output
-						OP_CONF_HALT_IN  => OP_CONF_HALT,		-- resource conflict in
 						EXT_HALT_IN		  => HALT_IF,				-- external halt instr fetch request
 						PC_HALT_OUT		  => PC_HALT,				-- halt instruction fetch output
 						SREG_IN          => CMSR,					-- current machine status register
-						INT_VECTOR_IN	  => INT_VECTOR_BUS,		-- interrupt jump vector input
 						EXECUTE_INT_IN	  => INT_EXECUTE,			-- execute interupt request
+						STALLS_IN        => STALLS,				-- number of bubbles
 						OP_ADR_OUT       => OP_ADR,				-- operand register addresses
 						IMM_OUT          => IMMEDIATE,			-- immediate output
 						SHIFT_M_OUT      => SHIFT_MOD,			-- shift mode output
 						SHIFT_C_OUT      => SHIFT_VAL,			-- immediate shif value output
 						OF_CTRL_OUT      => OF_CTRL,				-- stage control OF
+						MS_CTRL_OUT      => MS_CTRL,				-- stage control MS
 						EX1_CTRL_OUT     => EX1_CTRL,				-- stage control EX
 						MEM_CTRL_OUT     => MEM_CTRL,				-- stage control MA
 						WB_CTRL_OUT      => WB_CTRL				-- stage control WB
 					);
-					
+
 
 	-- Debugging Stuff
 	-- ------------------------------------------------------------------------------
-	DEBUG_FLAG <= CMSR(31 downto 28);
+	DEBUG_FLAG <= MS_CTRL(CTRL_EN) & EX1_CTRL(CTRL_EN) & MEM_CTRL(CTRL_EN) &  WB_CTRL(CTRL_EN);--CMSR(31 downto 28);
 
 	-- Machine Control System
 	-- ------------------------------------------------------------------------------
@@ -220,11 +232,11 @@ begin
 						CTRL				=> EX1_CTRL,			-- stage flow control
 						HALT_IN			=> PC_HALT,				-- halt program counter
 						INT_TKN_OUT		=> INT_EXECUTE,		-- execute interrupt output
-						INT_VEC_OUT		=> INT_VECTOR_BUS,	-- interrupt jump vector output
 						FLAG_IN			=> ALU_FLAGS,			-- alu flags input
 						CMSR_OUT			=> CMSR,					-- current machine status register
 						PC1_OUT			=> PC_1,					-- current program counter
-						PC2_OUT			=> PC_2,					-- delayed progeam counter
+						PC2_OUT			=> PC_2,					-- delayed progam counter
+						PC3_OUT			=> open,
 						MCR_DATA_IN		=> MCR_DTA_WR,			-- mcr write data input
 						MCR_DATA_OUT	=> MCR_DTA_RD,			-- mcr read data output
 						EX_FIQ_IN		=> FIQ,					-- external fast interrupt request
@@ -237,7 +249,7 @@ begin
 
 
 	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 1/4: OPERAND FETCH / INSTRUCITON DECODE / DATA WRITE BACK                    ##
+	-- ##			PIPELINE STAGE 1/5: OPERAND FETCH & INSTRUCITON DECODE / DATA WRITE BACK                    ##
 	-- #######################################################################################################
 
 	-- Data Register File
@@ -265,9 +277,10 @@ begin
 	Operand_Fetch_Unit:
 	OPERAND_UNIT
 		port map	(
+						CLK				=> gCLK,					-- global clock net
+						RES				=> gRES,					-- global active high reset
 						CTRL_IN			=> OF_CTRL,				-- stage flow control
 						OP_ADR_IN		=> OP_ADR,				-- register operand address
-						CONF_HALT_OUT	=> OP_CONF_HALT,		-- resource write conflict
 						OP_A_IN			=> OF_OP_A,				-- register A input
 						OP_B_IN			=> OF_OP_B,				-- register B input
 						OP_C_IN			=> OF_OP_C,				-- register C input
@@ -275,17 +288,45 @@ begin
 						PC1_IN			=> PC_1, 				-- current program counter
 						PC2_IN			=> PC_2,					-- delayed program counter
 						IMM_IN			=> IMMEDIATE,			-- immediate value
-						IS_INT_IN		=> INT_EXECUTE,		-- execute interrupt request
 						OP_A_OUT			=> OF_OP_A_OUT,		-- operand A data output
 						OP_B_OUT			=> OF_OP_B_OUT,		-- operant B data output
 						SHIFT_VAL_OUT	=> SHIFT_VAL_BUFF,	-- shift operand output
 						BP1_OUT			=> OF_BP1_OUT,			-- bypass data output
+						STALLS_OUT		=> STALLS,				-- insert n bubbles
+						MSU_FW_IN		=> MS_FW_PATH,			-- ms forwarding path
 						ALU_FW_IN		=> ALU_FW_PATH,		-- alu forwarding path
 						MEM_FW_IN		=> MEM_FW_PATH			-- memory forwarding path
 					);
 
 	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 0/2: ALU OPERATION / INSTRUCTION FETCH / MCR ACCESS                          ##
+	-- ##			PIPELINE STAGE 2: MULTIPLICATION & SHIFT                                                    ##
+	-- #######################################################################################################
+
+	-- Multiply/Shift Unit
+	-- ------------------------------------------------------------------------------
+	Multishifter:
+	MS_UNIT
+		port map	(
+						CLK				=> gCLK,					-- global clock line
+						RES				=> gRES,					-- global reset line
+						CTRL				=> MS_CTRL,				-- stage control lines
+						OP_A_IN			=> OF_OP_A_OUT,		-- operant a input
+						OP_B_IN			=> OF_OP_B_OUT,		-- operant b input
+						BP_IN				=> OF_BP1_OUT,			-- bypass input
+						CARRY_IN			=> CMSR(SREG_C_FLAG),-- carry input
+						SHIFT_V_IN		=> SHIFT_VAL_BUFF,	-- shift value in
+						SHIFT_M_IN		=> SHIFT_MOD,			-- shift mode in
+						OP_A_OUT			=> OP_A_MS,				-- operant a bypass output
+						BP_OUT			=> BP_MS,				-- bypass output
+						RESULT_OUT		=> OP_B_MS,				-- operation result
+						CARRY_OUT		=> MS_CARRY,			-- operation carry signal
+						OVFL_OUT			=> MS_OVFL,				-- operation overflow signal
+						MSU_FW_OUT		=> MS_FW_PATH			-- forwarding path
+					);
+
+
+	-- #######################################################################################################
+	-- ##			PIPELINE STAGE 3/0: ALU OPERATION & MCR ACCESS / INSTRUCTION FETCH                          ##
 	-- #######################################################################################################
 
 	-- Arithmetical/Logical Unit
@@ -296,16 +337,18 @@ begin
 						CLK				=> gCLK,					-- global clock net
 						RES				=> gRES,					-- global active high reset
 						CTRL				=> EX1_CTRL,			-- stage flow control
-						OP_A_IN			=> OF_OP_A_OUT,		-- operand A input
-						OP_B_IN			=> OF_OP_B_OUT,		-- operant B input
-						BP1_IN			=> OF_BP1_OUT,			-- bypass data input
+						OP_A_IN			=> OP_A_MS,				-- operand A input
+						OP_B_IN			=> OP_B_MS,				-- operant B input
+						BP1_IN			=> BP_MS,				-- bypass data input
 						BP1_OUT			=> EX_BP1_OUT,			-- bypass data output
-						ALU_RES_OUT		=> EX_ALU_OUT,			-- operation result
-						DATA_OUT			=> MEM_DATA,			-- memory data output
-						SHIFT_V_IN		=> SHIFT_VAL_BUFF,	-- shift value input
-						SHIFT_M_IN		=> SHIFT_MOD,			-- shift mode input
+						ADR_OUT			=> EX_ADR_OUT,			-- memory access address
+						RESULT_OUT		=> EX_RES_OUT,			-- EX result data
 						FLAG_IN			=> CMSR(31 downto 28), -- sreg alu flags input
 						FLAG_OUT			=> ALU_FLAGS,			-- alu flags output
+						PC_IN				=> PC_2,					-- pc for INT_LINK
+						INT_CALL_IN		=> INT_EXECUTE,		-- this is an interrupt call	
+						MS_CARRY_IN		=> MS_CARRY,			-- ms carry output
+						MS_OVFL_IN		=> MS_OVFL,				-- ms overflow output
 						MCR_DTA_OUT		=> MCR_DTA_WR,			-- mcr write data output
 						MCR_DTA_IN		=> MCR_DTA_RD,			-- mcr read data input
 						MREQ_OUT			=> MREQ,					-- memory access in next cycle
@@ -313,9 +356,9 @@ begin
 					);
 
 
-	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 3: MEMORY ACCESS                                                             ##
-	-- #######################################################################################################
+	-- #####################################################################################################
+	-- ##			PIPELINE STAGE 4/5: DATA MEMORY ACCESS / DATA WRITE BACK                                  ##
+	-- #####################################################################################################
 
 	-- Data Memory Access System
 	-- ------------------------------------------------------------------------------
@@ -325,9 +368,9 @@ begin
 						CLK				=> gCLK,					-- global clock net
 						RES				=> gRES,					-- global active high reset
 						CTRL_IN			=> MEM_CTRL,			-- stage flow control
-						MEM_DATA_IN		=> MEM_DATA,			-- memory write data input
-						MEM_ADR_IN		=> EX_ALU_OUT,			-- memory address input
-						MEM_BP_IN		=> EX_BP1_OUT,			-- memory bypass data input
+						MEM_DATA_IN		=> EX_RES_OUT,			-- EX data result
+						MEM_ADR_IN		=> EX_ADR_OUT,			-- memory access address
+						MEM_BP_IN		=> EX_BP1_OUT,			-- bp/write data input
 						DATA_OUT			=> MEM_DTA_OUT,		-- memory read data output
 						BP_OUT			=> MEM_BP_OUT,			-- memory bypass data output
 						LDST_FW_OUT		=> MEM_FW_PATH,		-- mem forwarding path

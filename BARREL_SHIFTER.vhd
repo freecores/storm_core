@@ -19,13 +19,13 @@ entity BARREL_SHIFTER is
 				----------------------------------------------------
 				SHIFT_DATA_IN	: in  STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
-				
+
 				-- Flag Operands --
 				----------------------------------------------------
 				CARRY_IN			: in  STD_LOGIC;
 				CARRY_OUT		: out STD_LOGIC;
 				OVERFLOW_OUT	: out STD_LOGIC;
-				
+
 				-- Operation Control --
 				----------------------------------------------------
 				SHIFT_MODE		: in  STD_LOGIC_VECTOR(01 downto 0);

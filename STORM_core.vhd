@@ -8,8 +8,10 @@
 -- #   - RES_SYNC.vhd                                    #
 -- #   - REG_FILE.vhd                                    #
 -- #   - OPERANT_UNIT.vhd                                #
--- #   - ALU.vhd                                         #
+-- #   - MS_UNIT.vhd                                     #
+-- #     - MULTIPLICATION_UNIT.vhd                       #
 -- #     - BARREL_SHIFTER.vhd                            #
+-- #   - ALU.vhd                                         #
 -- #     - ARITHMETICAL_UNIT.vhd                         #
 -- #     - LOGICAL_UNIT.vhd                              #
 -- #   - FLOW_CTRL.vhd                                   #
@@ -17,20 +19,26 @@
 -- #   - LOAD_STORE_UNIT.vhd                             #
 -- #   - X1_OPCODE_DECODER.vhd                           #
 -- # +-------------------------------------------------+ #
--- # Version 2.1, 18.03.2011                             #
+-- # Version 2.2, 21.03.2011                             #
 -- #######################################################
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-
 
 package STORM_core_package is
 
   -- ARCHITECTURE CONSTANTS -----------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
    constant STORM_MODE			: boolean	:= TRUE;	-- use STORM extension architecture
-	constant BT_NOP_CYCLES		: natural	:= 2;		-- dummy cycles after taken branch
-	constant PC_INCREMENT		: natural	:= 4;		-- auto increment for PC
+	constant PC_INCREMENT		: natural	:= 1;		-- auto increment for PC
+
+  -- DUMMY CYCLES FOR TEMPORAL PIPELINE CONFLICTS -------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+ 	constant DC_TAKEN_BRANCH	: STD_LOGIC_VECTOR(1 downto 0) :=  "10"; -- dc after taken branch
+	constant OF_MS_REG_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ms reg/reg conflict
+	constant OF_MS_MCR_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ms reg/mcr conflict
+	constant OF_MS_MEM_DD		: STD_LOGIC_VECTOR(2 downto 0) := "101"; -- of-ms reg/mem conflict
+	constant OF_EX_MEM_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ex reg/mem conflict
 
   -- ADDRESS CONSTANTS ----------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -51,11 +59,13 @@ package STORM_core_package is
   -- -------------------------------------------------------------------------------------------
 	constant FWD_DATA_LSB		: natural :=  0; -- Forwardind Data Bit 0
 	constant FWD_DATA_MSB		: natural := 31; -- Forwarding Data Bit 31
-	constant FWD_RD_0				: natural := 32; -- Destination Adr Bit 0
-	constant FWD_RD_3				: natural := 35; -- Destination Adr Bit 3
+	constant FWD_RD_LSB			: natural := 32; -- Destination Adr Bit 0
+	constant FWD_RD_MSB			: natural := 35; -- Destination Adr Bit 3
 	constant FWD_WB				: natural := 36; -- Data in stage will be written back to reg
-	constant FWD_MEM_ACC			: natural := 37; -- Memory Read Access
-	constant FWD_MCR_ACC			: natural := 38; -- MCR Read Access
+	constant FWD_CY_NEED			: natural := 37; -- Carry flag is needed
+	constant FWD_MCR_R_ACC		: natural := 38; -- MCR Read Access
+	constant FWD_MCR_W_ACC		: natural := 39; -- MCR will be changed somehow
+	constant FWD_MEM_ACC			: natural := 40; -- Memory Read Access
 
   -- CTRL BUS LOCATIONS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -65,7 +75,7 @@ package STORM_core_package is
 	constant CTRL_LINK			: natural :=  3; -- link
 	constant CTRL_SHIFTR			: natural :=  4; -- use register shift offset
 	constant CTRL_WB_EN			: natural :=  5; -- write back enable
-	
+
 	constant CTRL_RD_0			: natural :=  6; -- destination register adr bit 0
 	constant CTRL_RD_1			: natural :=  7; -- destination register adr bit 1
 	constant CTRL_RD_2			: natural :=  8; -- destination register adr bit 2
@@ -84,17 +94,18 @@ package STORM_core_package is
 	constant CTRL_ALU_FS_1		: natural := 18; -- alu function set bit 1
 	constant CTRL_ALU_FS_2		: natural := 19; -- alu function set bit 2
 	constant CTRL_ALU_FS_3		: natural := 20; -- alu function set bit 3
+	constant CTRL_MS				: natural := 21; -- '0' = shift, '1' = multiply
 
-	constant CTRL_MEM_ACC		: natural := 21; -- '1' = Access memory
-	constant CTRL_MEM_M			: natural := 22; -- '0' = word, '1' = byte
-	constant CTRL_MEM_RW			: natural := 23; -- '0' = read, '1' = write
+	constant CTRL_MEM_ACC		: natural := 22; -- '1' = Access memory
+	constant CTRL_MEM_M			: natural := 23; -- '0' = word, '1' = byte
+	constant CTRL_MEM_RW			: natural := 24; -- '0' = read, '1' = write
 
-	constant CTRL_MREG_ACC		: natural := 24; -- '1' = Access machine register file
-	constant CTRL_MREG_M			: natural := 25; -- '0' = SREG, '1' = SMSR
-	constant CTRL_MREG_RW		: natural := 26; -- '0' = read, '1' = write
-	constant CTRL_MREG_FA		: natural := 27; -- '0' = whole access, '1' = flag access
+	constant CTRL_MREG_ACC		: natural := 25; -- '1' = Access machine register file
+	constant CTRL_MREG_M			: natural := 26; -- '0' = SREG, '1' = SMSR
+	constant CTRL_MREG_RW		: natural := 27; -- '0' = read, '1' = write
+	constant CTRL_MREG_FA		: natural := 28; -- '0' = whole access, '1' = flag access
 
-	---- Progress Redefinitions -----
+	---- Progress Redefinitions ----
 	constant CTRL_MODE_0			: natural := CTRL_AF;       -- mode bit 0
 	constant CTRL_MODE_1			: natural := CTRL_ALU_FS_0; -- mode bit 1
 	constant CTRL_MODE_2			: natural := CTRL_ALU_FS_1; -- mode bit 2
@@ -155,6 +166,31 @@ package STORM_core_package is
 	constant COND_AL		: STD_LOGIC_VECTOR(3 downto 0) := "1110";
 	constant COND_NV		: STD_LOGIC_VECTOR(3 downto 0) := "1111";
 
+  -- COOL WORKING MUSIC ---------------------------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+	-- Trace Adkins - Brown Chicken Brown Cow
+	-- Jason Aldean with Kelly Clarkson - Dont You Wanna Stay
+	-- Carrie Underwood - Last Name
+	-- Thompson Square - Are You Gonna Kiss Me Or Not
+	-- Sugarland - Something More
+	-- Taylor Swift - Today Was A Fairy Tale
+	-- Montgomery Gentry - One In Every Crowd
+	-- Tim McGraw - Something Like That
+	-- Trace Adkins - You're Gonna Miss This
+	--	Jason Aldean - Amarillo Sky
+	--	Rascal Flatts - These Days
+	--	Coldwater Jane - Bring On The Love
+	-- Reba McEntire - The Night The Lights Went Out In Georgia
+	-- Laura Bell Bundy - Giddy Up On
+	-- Jerrod Niemann - Lover, Lover
+	-- Craig Morgan - Redneck Yacht Club
+	-- Darius Rucker - This
+	-- Travis Tritt - I'm Gonna Be Somebody
+	-- Three Doors Down - When You're Young
+	-- Edita - The Key
+	-- Johannes Oerding - Morgen
+	-- Nickelback - Never Gonna Be Alone
+
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
 	constant LOGICAL_OP			: STD_LOGIC	:= '0';	
@@ -206,11 +242,11 @@ package STORM_core_package is
 				CTRL				: in  STD_LOGIC_VECTOR(31 downto 0);
 				HALT_IN			: in  STD_LOGIC;
 				INT_TKN_OUT		: out STD_LOGIC;
-				INT_VEC_OUT		: out STD_LOGIC_VECTOR(04 downto 0);
 				FLAG_IN			: in  STD_LOGIC_VECTOR(03 downto 0);
 				CMSR_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				PC1_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				PC2_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				PC3_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
 				EX_FIQ_IN		: in  STD_LOGIC;
@@ -223,9 +259,10 @@ package STORM_core_package is
   -- -------------------------------------------------------------------------------------------
   component OPERAND_UNIT
 	 port	(
+				CLK				: in  STD_LOGIC;
+				RES				: in  STD_LOGIC;
 				CTRL_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				OP_ADR_IN		: in  STD_LOGIC_VECTOR(11 downto 0);
-				CONF_HALT_OUT	: out STD_LOGIC;
 				OP_A_IN			: in 	STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_IN			: in	STD_LOGIC_VECTOR(31 downto 0);
 				OP_C_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
@@ -233,13 +270,14 @@ package STORM_core_package is
 				PC1_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				PC2_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				IMM_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
-				IS_INT_IN		: in  STD_LOGIC;
 				OP_A_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_VAL_OUT	: out STD_LOGIC_VECTOR(04 downto 0);
 				BP1_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
-				ALU_FW_IN		: in  STD_LOGIC_VECTOR(38 downto 0);
-				MEM_FW_IN		: in  STD_LOGIC_VECTOR(36 downto 0)
+				STALLS_OUT		: out STD_LOGIC_VECTOR(02 downto 0);
+				MSU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
+				ALU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
+				MEM_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0)
 			);
   end component;
   
@@ -275,7 +313,7 @@ package STORM_core_package is
 				MEM_BP_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				LDST_FW_OUT		: out STD_LOGIC_VECTOR(36 downto 0);
+				LDST_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0);
 				XMEM_ADR			: out STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_RD_DTA		: in  STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0);
@@ -304,23 +342,72 @@ package STORM_core_package is
 				OPCODE_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
 				OPCODE_CTRL_IN		: in  STD_LOGIC_VECTOR(99 downto 0);
 				OPCODE_CTRL_OUT	: out STD_LOGIC_VECTOR(15 downto 0);
-				OP_CONF_HALT_IN	: in  STD_LOGIC;
 				EXT_HALT_IN			: in  STD_LOGIC;
 				PC_HALT_OUT			: out STD_LOGIC;
 				SREG_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
-				INT_VECTOR_IN		: in  STD_LOGIC_VECTOR(04 downto 0);
 				EXECUTE_INT_IN		: in  STD_LOGIC;
+				STALLS_IN			: in  STD_LOGIC_VECTOR(02 downto 0);
 				OP_ADR_OUT			: out STD_LOGIC_VECTOR(11 downto 0);
 				IMM_OUT				: out STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_M_OUT			: out STD_LOGIC_VECTOR(01 downto 0);
 				SHIFT_C_OUT			: out STD_LOGIC_VECTOR(04 downto 0);
 				OF_CTRL_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				MS_CTRL_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				EX1_CTRL_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
 				MEM_CTRL_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
 				WB_CTRL_OUT			: out STD_LOGIC_VECTOR(31 downto 0)
 			);
   end component;
+  
+  -- COMPONENT Multiplication/Shift Unit ----------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+  component MS_UNIT
+    port	(
+				CLK				: in  STD_LOGIC;
+				RES				: in  STD_LOGIC;
+				CTRL				: in  STD_LOGIC_VECTOR(31 downto 0);
+				OP_A_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
+				OP_B_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
+				BP_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
+				CARRY_IN			: in  STD_LOGIC;
+				SHIFT_V_IN		: in  STD_LOGIC_VECTOR(04 downto 0);
+				SHIFT_M_IN		: in  STD_LOGIC_VECTOR(01 downto 0);
+				OP_A_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				RESULT_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
+				CARRY_OUT		: out STD_LOGIC;
+				OVFL_OUT			: out STD_LOGIC;
+				MSU_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
+			);
+  end component;
 
+
+  -- COMPONENT MS_UNIT/Multiplication Unit --------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+  component MULTIPLY_UNIT
+    port	(
+				OP_B			: in  STD_LOGIC_VECTOR(31 downto 0);
+				OP_C			: in  STD_LOGIC_VECTOR(31 downto 0);
+				RESULT		: out STD_LOGIC_VECTOR(31 downto 0);
+				CARRY_OUT	: out STD_LOGIC;
+				OVFL_OUT		: out STD_LOGIC
+			);
+  end component;
+  
+  -- COMPONENT MS_UNIT/Barrel Shifter Unit --------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+  component BARREL_SHIFTER
+    port (
+				SHIFT_DATA_IN	: in  STD_LOGIC_VECTOR(31 downto 0);
+				SHIFT_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
+				CARRY_IN			: in  STD_LOGIC;
+				CARRY_OUT		: out STD_LOGIC;
+				OVERFLOW_OUT	: out STD_LOGIC;
+				SHIFT_MODE		: in  STD_LOGIC_VECTOR(01 downto 0);
+				SHIFT_POS		: in  STD_LOGIC_VECTOR(04 downto 0)
+			);
+  end component;
+  
   -- COMPONENT Data Operation Unit ----------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   component ALU
@@ -332,30 +419,18 @@ package STORM_core_package is
 				OP_B_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				BP1_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				BP1_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				ALU_RES_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
-				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				SHIFT_V_IN		: in  STD_LOGIC_VECTOR(04 downto 0);
-				SHIFT_M_IN		: in  STD_LOGIC_VECTOR(01 downto 0);
+				ADR_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				RESULT_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
 				FLAG_IN			: in  STD_LOGIC_VECTOR(03 downto 0);
 				FLAG_OUT			: out STD_LOGIC_VECTOR(03 downto 0);
+				PC_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
+				INT_CALL_IN		: in  STD_LOGIC;
+				MS_CARRY_IN		: in  STD_LOGIC;
+				MS_OVFL_IN		: in  STD_LOGIC;
 				MCR_DTA_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DTA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MREQ_OUT			: out STD_LOGIC;
-				ALU_FW_OUT		: out STD_LOGIC_VECTOR(38 downto 0)
-			);
-  end component;
-  
-  -- COMPONENT ALU/Barrel Shifter Unit ------------------------------------------------------
-  -- -------------------------------------------------------------------------------------------
-  component BARREL_SHIFTER
-    port (
-				SHIFT_DATA_IN	: in  STD_LOGIC_VECTOR(31 downto 0);
-				SHIFT_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
-				CARRY_IN			: in  STD_LOGIC;
-				CARRY_OUT		: out STD_LOGIC;
-				OVERFLOW_OUT	: out STD_LOGIC;
-				SHIFT_MODE		: in  STD_LOGIC_VECTOR(01 downto 0);
-				SHIFT_POS		: in  STD_LOGIC_VECTOR(04 downto 0)
+				ALU_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
 			);
   end component;
 

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #             Arithmetical Operation Unit             #
 -- # *************************************************** #
--- # Version 1.5, 18.03.2011                             #
+-- # Version 1.5.0, 19.03.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -45,102 +45,100 @@ begin
 
 	-- Arithmetical Unit -----------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-	ARITHMETICAL_CORE: process(CTRL, ADDER_RES, OP_A, OP_B)
-	begin
-		case(ARITHMETICAL_OP & CTRL) is -- Artithmetic Function Set
+		ARITHMETICAL_CORE: process(CTRL, ADDER_RES, OP_A, OP_B)
+		begin
+			case(ARITHMETICAL_OP & CTRL) is -- Arithmetic Function Set
 
-			-- ADD: result = OP_A + OP_B --
-			when A_ADD =>
-				ADD_MODE  <= "000";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- ADD: result = OP_A + OP_B --
+				when A_ADD =>
+					ADD_MODE  <= "000";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- ADC: result = OP_A + OP_B + Carry-Flag --
-			when A_ADC =>
-				ADD_MODE  <= "100";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- ADC: result = OP_A + OP_B + Carry-Flag --
+				when A_ADC =>
+					ADD_MODE  <= "100";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- SUB: result = OP_A - OP_B --
-			when A_SUB =>
-				ADD_MODE  <= "001";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- SUB: result = OP_A - OP_B --
+				when A_SUB =>
+					ADD_MODE  <= "001";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- SBC: result = OP_A - OP_B - Carry-Flag --
-			when A_SBC =>
-				ADD_MODE  <= "101";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- SBC: result = OP_A - OP_B - Carry-Flag --
+				when A_SBC =>
+					ADD_MODE  <= "101";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- RSB: result = OP_B - OP_A --
-			when A_RSB =>
-				ADD_MODE  <= "010";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- RSB: result = OP_B - OP_A --
+				when A_RSB =>
+					ADD_MODE  <= "010";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- RSC: result = OP_B - OP_A - Carry-Flag --
-			when A_RSC =>
-				ADD_MODE  <= "110";
-				RESULT    <= ADDER_RES(31 downto 0);
+				-- RSC: result = OP_B - OP_A - Carry-Flag --
+				when A_RSC =>
+					ADD_MODE  <= "110";
+					RESULT    <= ADDER_RES(31 downto 0);
 
-			-- CMP: result = OP_B, compares by F = OP_A + OP_B --
-			when A_CMP =>
-				ADD_MODE  <= "000";
-				RESULT    <= OP_B;
+				-- CMP: result = OP_B, compares by F = OP_A + OP_B --
+				when A_CMP =>
+					ADD_MODE  <= "000";
+					RESULT    <= OP_B;
 
-			-- CMN: result = OP_A, compares by F = OP_A - OP_B --
-			when A_CMN =>
-				ADD_MODE  <= "001";
-				RESULT    <= OP_A;
-			
-			-- Undefined --
-			when others =>
-				ADD_MODE	 <= (others => '-');
-				RESULT    <= (others => '-');
+				-- CMN: result = OP_A, compares by F = OP_A - OP_B --
+				when A_CMN =>
+					ADD_MODE  <= "001";
+					RESULT    <= OP_A;
+				
+				-- Undefined --
+				when others =>
+					ADD_MODE	 <= (others => '-');
+					RESULT    <= (others => '-');
 
-		end case;
-	end process ARITHMETICAL_CORE;
-
+			end case;
+		end process ARITHMETICAL_CORE;
 
 
 
 	-- Adder/Subtractor ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-	ADDER_SUBTRACTOR: process(ADD_MODE, OP_A, OP_B, A_CARRY_IN, ADDER_RES)
-		variable ADDER_A, ADDER_B : std_logic_vector(32 downto 0);
-		variable CARRY_IN         : std_logic_vector(00 downto 0);
+		ADDER_SUBTRACTOR: process(ADD_MODE, OP_A, OP_B, A_CARRY_IN, ADDER_RES)
+			variable ADDER_A, ADDER_B : std_logic_vector(32 downto 0);
+			variable CARRY_IN         : std_logic_vector(00 downto 0);
 
-	begin
-		ADDER_A(32) := '0';
-		ADDER_B(32) := '0';
-		case (ADD_MODE(1 downto 0)) is
-		
-			when "00" => -- (+OP_A) + (+OP_B)
-				ADDER_A(31 downto 0) := OP_A;
-				ADDER_B(31 downto 0) := OP_B;
-				
-			when "01" => -- (+OP_A) + (-OP_B)
-				ADDER_A(31 downto 0) := OP_A;
-				ADDER_B(31 downto 0) := not OP_B;
-				
-			when "10" => -- (-OP_A) + (+OP_B)
-				ADDER_A(31 downto 0) := not OP_A;
-				ADDER_B(31 downto 0) := OP_B;
+		begin
+			ADDER_A(32) := '0';
+			ADDER_B(32) := '0';
+			case (ADD_MODE(1 downto 0)) is
+			
+				when "00" => -- (+OP_A) + (+OP_B)
+					ADDER_A(31 downto 0) := OP_A;
+					ADDER_B(31 downto 0) := OP_B;
+					
+				when "01" => -- (+OP_A) + (-OP_B)
+					ADDER_A(31 downto 0) := OP_A;
+					ADDER_B(31 downto 0) := not OP_B;
+					
+				when "10" => -- (-OP_A) + (+OP_B)
+					ADDER_A(31 downto 0) := not OP_A;
+					ADDER_B(31 downto 0) := OP_B;
 
-			when others => -- invalid
-				ADDER_A(32 downto 0) := (others => '-');
-				ADDER_B(32 downto 0) := (others => '-');
+				when others => -- invalid
+					ADDER_A(32 downto 0) := (others => '-');
+					ADDER_B(32 downto 0) := (others => '-');
 
-		end case;
+			end case;
 
-		-- carry input logic --
-		CARRY_IN(0) := (ADD_MODE(2) and A_CARRY_IN) xor (ADD_MODE(0) or ADD_MODE(1));
-		
-		-- adder/subtractor --
-		ADDER_RES <= std_logic_vector(unsigned(ADDER_A) + unsigned(ADDER_B) + unsigned(CARRY_IN(0 downto 0)));
-		
-		-- carry output logic --
-		CARRY_OUT <= ADDER_RES(32) xor (ADD_MODE(0) or ADD_MODE(1));
+			-- carry input logic --
+			CARRY_IN(0) := (ADD_MODE(2) and A_CARRY_IN) xor (ADD_MODE(0) or ADD_MODE(1));
+			
+			-- adder/subtractor --
+			ADDER_RES <= std_logic_vector(unsigned(ADDER_A) + unsigned(ADDER_B) + unsigned(CARRY_IN(0 downto 0)));
+			
+			-- carry output logic --
+			CARRY_OUT <= ADDER_RES(32) xor (ADD_MODE(0) or ADD_MODE(1));
 
-	end process ADDER_SUBTRACTOR;
-	
-	
+		end process ADDER_SUBTRACTOR;
+
 	
 	
 	-- FLAG Logic ------------------------------------------------------------------------------------------

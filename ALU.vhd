@@ -1,7 +1,7 @@
 -- #######################################################
 -- #     < STORM CORE PROCESSOR by Stephan Nolting >     #
 -- # *************************************************** #
--- #        Arithmetical/Logical/MCR_Contact Unit        #
+-- #         Arithmetical/Logical/MCR_Access Unit        #
 -- # *************************************************** #
 -- # Version 2.4, 18.03.2011                             #
 -- #######################################################
@@ -23,7 +23,7 @@ entity ALU is
 
 				CLK				: in  STD_LOGIC;							 -- global clock line
 				RES				: in  STD_LOGIC;							 -- global reset line
-				CTRL				: in  STD_LOGIC_VECTOR(31 downto 0); -- control lines
+				CTRL				: in  STD_LOGIC_VECTOR(31 downto 0); -- stage control lines
 
 -- ###############################################################################################
 -- ##			Operand Connection                                                                  ##
@@ -33,14 +33,17 @@ entity ALU is
 				OP_B_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- operant b input
 				BP1_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- bypass input
 				BP1_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- bypass output
-				ALU_RES_OUT		: out STD_LOGIC_VECTOR(31 downto 0); -- alu result output
-				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- data output
-
-				SHIFT_V_IN		: in  STD_LOGIC_VECTOR(04 downto 0); -- shift value in
-				SHIFT_M_IN		: in  STD_LOGIC_VECTOR(01 downto 0); -- shift mode in
+				ADR_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- alu address output
+				RESULT_OUT		: out STD_LOGIC_VECTOR(31 downto 0); -- EX result output
 
 				FLAG_IN			: in  STD_LOGIC_VECTOR(03 downto 0); -- alu flags input
 				FLAG_OUT			: out STD_LOGIC_VECTOR(03 downto 0); -- alu flgas output
+
+				PC_IN				: in  STD_LOGIC_VECTOR(31 downto 0); -- program counter input
+				INT_CALL_IN		: in  STD_LOGIC;							 -- this is an interrupt call
+				
+				MS_CARRY_IN		: in  STD_LOGIC;							 -- multiply/shift carry
+				MS_OVFL_IN		: in  STD_LOGIC;							 -- multiply/shift overflow
 
 				MCR_DTA_OUT		: out STD_LOGIC_VECTOR(31 downto 0); -- mcr write data output
 				MCR_DTA_IN		: in  STD_LOGIC_VECTOR(31 downto 0); -- mcr read data input
@@ -49,26 +52,25 @@ entity ALU is
 -- ##			Verious Signals                                                                     ##
 -- ###############################################################################################
 
-				MREQ_OUT			: out STD_LOGIC;							-- memory request for next cycle
+				MREQ_OUT			: out STD_LOGIC;							-- memory request signal
 
 -- ###############################################################################################
 -- ##			Forwarding Path                                                                     ##
 -- ###############################################################################################
 
-				ALU_FW_OUT		: out STD_LOGIC_VECTOR(38 downto 0)  -- forwarding path
+				ALU_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)  -- forwarding path
 
 			);
 end ALU;
 
 architecture ALU_STRUCTURE of ALU is
 
-	-- local signals --
-	signal	OP_B_TEMP, OP_B, OP_A		: STD_LOGIC_VECTOR(31 downto 0);
-	signal	SHIFT_V_TEMP					: STD_LOGIC_VECTOR(04 downto 0);
-	signal	SHIFT_M_TEMP					: STD_LOGIC_VECTOR(01 downto 0);
-	signal	BP1								: STD_LOGIC_VECTOR(31 downto 0);
+	-- Pipeline Register --
+	signal	OP_B, OP_A, BP1				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	MS_CARRY_REG, MS_OVFL_REG	: STD_LOGIC;
+
+	-- Local Signals --
 	signal	ALU_OUT, ALU_OUT_2			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	BS_CRY_LINE, BS_OVF_LINE	: STD_LOGIC;
 	signal	ARITH_RES, LOGIC_RES			: STD_LOGIC_VECTOR(31 downto 0);
 	signal	ARITH_FLAG_OUT					: STD_LOGIC_VECTOR(03 downto 0);
 	signal	LOGIC_FLAG_OUT					: STD_LOGIC_VECTOR(03 downto 0);
@@ -77,24 +79,24 @@ begin
 
 	-- Pipeline-Buffers ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		EX_BUFFER: process(CLK, RES)
+		ALU_BUFFER: process(CLK, RES)
 		begin
 			if rising_edge (CLK) then
 				if (RES = '1') then
 					OP_A         <= (others => '0');
-					OP_B_TEMP    <= (others => '0');
+					OP_B         <= (others => '0');
 					BP1          <= (others => '0');
-					SHIFT_V_TEMP <= (others => '0');
-					SHIFT_M_TEMP <= (others => '0');
+					MS_CARRY_REG <= '0';
+					MS_OVFL_REG  <= '0';
 				else
 					OP_A         <= OP_A_IN;
-					OP_B_TEMP    <= OP_B_IN;
+					OP_B		    <= OP_B_IN;
 					BP1	       <= BP1_IN;
-					SHIFT_V_TEMP <= SHIFT_V_IN;
-					SHIFT_M_TEMP <= SHIFT_M_IN;
+					MS_CARRY_REG <= MS_CARRY_IN;
+					MS_OVFL_REG  <= MS_OVFL_IN;
 				end if;
 			end if;
-		end process EX_BUFFER;
+		end process ALU_BUFFER;
 
 
 
@@ -102,27 +104,12 @@ begin
 	-- --------------------------------------------------------------------------------------------------------
 		-- MREG_READ_ACCESS & MEM_READ_ACCESS & STAGE_ENABLE & R_DEST 
 		ALU_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= ALU_OUT(31 downto 0);
-		ALU_FW_OUT(FWD_RD_3 downto FWD_RD_0)         <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
+		ALU_FW_OUT(FWD_RD_MSB   downto   FWD_RD_LSB) <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
 		
-		ALU_FW_OUT(FWD_WB)      <= (CTRL(CTRL_EN) and (not CTRL(CTRL_BRANCH)) and CTRL(CTRL_WB_EN)); -- write back enabled
-		ALU_FW_OUT(FWD_MEM_ACC) <= CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW)); -- memory read access
-		ALU_FW_OUT(FWD_MCR_ACC) <= CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW)); -- mreg read access
+		ALU_FW_OUT(FWD_WB)        <= (CTRL(CTRL_EN) and CTRL(CTRL_WB_EN));--(CTRL(CTRL_EN) and (not CTRL(CTRL_BRANCH)) and CTRL(CTRL_WB_EN)); -- write back enabled
+		ALU_FW_OUT(FWD_MEM_ACC)   <= CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW)); -- memory read access
+		ALU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW)); -- mreg read access
 
-
-
-	-- Barrelshifter ---------------------------------------------------------------------------------------
-	-- --------------------------------------------------------------------------------------------------------
-		Barrelshifter:
-			BARREL_SHIFTER
-				port map (
-								SHIFT_DATA_IN	=> OP_B_TEMP,
-								SHIFT_DATA_OUT	=> OP_B,
-								CARRY_IN			=> FLAG_IN(1),
-								CARRY_OUT		=> BS_CRY_LINE,
-								OVERFLOW_OUT	=> BS_OVF_LINE,
-								SHIFT_MODE		=> SHIFT_M_TEMP,
-								SHIFT_POS		=> SHIFT_V_TEMP
-							);
 
 
 	-- Arithemtical / Logical Core -------------------------------------------------------------------------
@@ -133,7 +120,7 @@ begin
 								OP_A			=> OP_A,
 								OP_B			=> OP_B,
 								RESULT		=> ARITH_RES,
-								BS_OVF_IN	=> BS_OVF_LINE,
+								BS_OVF_IN	=> MS_OVFL_REG,
 								A_CARRY_IN	=> FLAG_IN(1),
 								FLAG_OUT 	=> ARITH_FLAG_OUT,
 								CTRL			=> CTRL(CTRL_ALU_FS_2 downto CTRL_ALU_FS_0)
@@ -145,59 +132,67 @@ begin
 								OP_A			=> OP_A,
 								OP_B			=> OP_B,
 								RESULT		=> LOGIC_RES,
-								BS_CRY_IN	=> BS_CRY_LINE,
-								BS_OVF_IN	=> BS_OVF_LINE,
+								BS_CRY_IN	=> MS_CARRY_REG,
+								BS_OVF_IN	=> MS_OVFL_REG,
 								L_CARRY_IN	=> FLAG_IN(1),
 								FLAG_OUT 	=> LOGIC_FLAG_OUT,
 								CTRL			=> CTRL(CTRL_ALU_FS_2 downto CTRL_ALU_FS_0)
 							);
 
 
-		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3))
+		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3), CTRL(CTRL_MS))
 		begin
-			if (CTRL(CTRL_ALU_FS_3) = LOGICAL_OP) then
-				ALU_OUT  <= LOGIC_RES;
-				FLAG_OUT <= LOGIC_FLAG_OUT;
-			else -- CTRL(CTRL_ALU_FS_3) = ARITHMETICAL_OP
-				ALU_OUT  <= ARITH_RES;
-				FLAG_OUT <= ARITH_FLAG_OUT;
-			end if;
+--			if (CTRL(CTRL_MS) = '1') then -- MULTIPLICATION
+--				ALU_OUT  <= ARITH_RES;
+--				FLAG_OUT <= MS_FLAG;
+--			else -- SHIFT
+				if (CTRL(CTRL_ALU_FS_3) = LOGICAL_OP) then -- LOGICAL OPERATION
+					ALU_OUT  <= LOGIC_RES;
+					FLAG_OUT <= LOGIC_FLAG_OUT;
+				else -- ARITHMETICAL OPERATION
+					ALU_OUT  <= ARITH_RES;
+					FLAG_OUT <= ARITH_FLAG_OUT;
+				end if;
+--			end if;
 		end process OPERATION_RESULT_MUX;
 
 
 
 	-- Stage Data Mux --------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		DATA_OUT_MUX: process(CTRL(CTRL_MREG_ACC), CTRL(CTRL_MREG_RW))
+		DATA_OUT_MUX: process(CTRL, MCR_DTA_IN, ALU_OUT)
 		begin
-			if (CTRL(CTRL_MREG_ACC) = '1') and (CTRL(CTRL_MREG_RW) = '0') then -- mcr read access
-				ALU_OUT_2 <= MCR_DTA_IN;
-			else -- normal alu operation
-				ALU_OUT_2 <= ALU_OUT;
+			if (CTRL(CTRL_MREG_ACC) = '1') and (CTRL(CTRL_MREG_RW) = '0') then
+			--- MCR Read Access ---
+				RESULT_OUT <= MCR_DTA_IN;
+			else
+			--- Normal Operation ---
+				RESULT_OUT <= ALU_OUT;
 			end if;
-		end process DATA_OUT_MUX;
 		
-		MCR_DTA_OUT <= ALU_OUT;		-- MCR connection
-		ALU_RES_OUT <= ALU_OUT_2;	-- ALU result
+			--- MCR Connection ---
+			MCR_DTA_OUT <= ALU_OUT;
+
+			--- Memory Address ---
+			ADR_OUT <= ALU_OUT;
+		end process DATA_OUT_MUX;
 
 
 
 	-- Bypass System ---------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		BP_MANAGER: process (BP1, ALU_OUT_2, CTRL(CTRL_LINK))
+		BP_MANAGER: process (BP1, PC_IN, CTRL)
 		begin
-			if (CTRL(CTRL_LINK) = '1') then
-				BP1_OUT <= BP1;
+			if (INT_CALL_IN = '1') then
+				BP1_OUT <= PC_IN;
 			else
-				BP1_OUT <= ALU_OUT_2;
+				BP1_OUT <= BP1;
 			end if;
 		end process BP_MANAGER;
 
-		DATA_OUT <= BP1;
 
 
-
-	-- Memory Request Generator ----------------------------------------------------------------------------
+	-- Memory Request Signal -------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		MEM_REQ: process(CTRL(CTRL_EN), CTRL(CTRL_MEM_ACC))
 		begin

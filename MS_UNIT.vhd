@@ -123,20 +123,9 @@ begin
 							
 	-- Operation Result Selector ---------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		RESULT_DATA_MUX: process(CTRL(CTRL_MS))
-		begin
-
-			if (CTRL(CTRL_MS) = '1') then -- use multiply result
-				OP_RESULT <= MUL_DATA;
-				CARRY_OUT <= MUL_CARRY;
-				OVFL_OUT  <= MUL_OVFL;
-			else -- use shift result
-				OP_RESULT <= SFT_DATA;
-				CARRY_OUT <= SFT_CARRY;
-				OVFL_OUT  <= SFT_OVFL;
-			end if;
-
-		end process RESULT_DATA_MUX;
+		OP_RESULT <= MUL_DATA  when (CTRL(CTRL_MS) = '1') else SFT_DATA;  -- result data
+		CARRY_OUT <= MUL_CARRY when (CTRL(CTRL_MS) = '1') else SFT_CARRY; -- carry flag
+		OVFL_OUT  <= MUL_OVFL  when (CTRL(CTRL_MS) = '1') else SFT_OVFL;  -- overflow flag
 
 
 

@@ -34,11 +34,11 @@ package STORM_core_package is
 
   -- DUMMY CYCLES FOR TEMPORAL PIPELINE CONFLICTS -------------------------------------------
   -- -------------------------------------------------------------------------------------------
- 	constant DC_TAKEN_BRANCH	: STD_LOGIC_VECTOR(1 downto 0) :=  "10"; -- dc after taken branch
-	constant OF_MS_REG_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ms reg/reg conflict
-	constant OF_MS_MCR_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ms reg/mcr conflict
-	constant OF_MS_MEM_DD		: STD_LOGIC_VECTOR(2 downto 0) := "101"; -- of-ms reg/mem conflict
-	constant OF_EX_MEM_DD		: STD_LOGIC_VECTOR(2 downto 0) := "011"; -- of-ex reg/mem conflict
+ 	constant DC_TAKEN_BRANCH	: STD_LOGIC_VECTOR(1 downto 0) := "10"; -- dc after taken branch
+	constant OF_MS_REG_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ms reg/reg conflict
+	constant OF_MS_MCR_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ms reg/mcr conflict
+	constant OF_MS_MEM_DD		: STD_LOGIC_VECTOR(1 downto 0) := "10"; -- of-ms reg/mem conflict
+	constant OF_EX_MEM_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ex reg/mem conflict
 
   -- ADDRESS CONSTANTS ----------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -137,6 +137,17 @@ package STORM_core_package is
 	constant DAT_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "10000"; -- going to Abort32_MODE
 	constant IRQ_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "11000"; -- going to IRQ32_MODE
 	constant FIQ_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "11100"; -- going to FIQ32_MODE
+	
+  -- BUG OVERVIEW ---------------------------------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+	-- The interrupt call handler freezes the system due to continous enable signal generating.
+	-- What the hell is wrong in the execution pipeline stage?!
+	-- -> need examination
+	
+	-- Memory acces cant be done in one single clock cycle... Why?!
+	
+	-- Memory align doesnt work quite well. The read acces of a single byte doesnt appear in
+	-- the correct sub byte of the load word... Why?
 
   -- PROCESSOR MODE CONSTANTS ---------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -274,10 +285,11 @@ package STORM_core_package is
 				OP_B_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_VAL_OUT	: out STD_LOGIC_VECTOR(04 downto 0);
 				BP1_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
-				STALLS_OUT		: out STD_LOGIC_VECTOR(02 downto 0);
+				HOLD_BUS_OUT	: out STD_LOGIC_VECTOR(02 downto 0);
 				MSU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
 				ALU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
-				MEM_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0)
+				MEM_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
+				WB_FW_IN			: in  STD_LOGIC_VECTOR(40 downto 0)
 			);
   end component;
   
@@ -297,7 +309,8 @@ package STORM_core_package is
 				PC_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
 				OP_A_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0)
+				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				WB_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
 			);
   end component;
 
@@ -346,7 +359,7 @@ package STORM_core_package is
 				PC_HALT_OUT			: out STD_LOGIC;
 				SREG_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
 				EXECUTE_INT_IN		: in  STD_LOGIC;
-				STALLS_IN			: in  STD_LOGIC_VECTOR(02 downto 0);
+				HOLD_BUS_IN			: in  STD_LOGIC_VECTOR(02 downto 0);
 				OP_ADR_OUT			: out STD_LOGIC_VECTOR(11 downto 0);
 				IMM_OUT				: out STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_M_OUT			: out STD_LOGIC_VECTOR(01 downto 0);

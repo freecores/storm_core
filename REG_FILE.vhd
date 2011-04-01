@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #         30x32 Bit Banked 1w3r Register File         #
 -- # *************************************************** #
--- # Version 2.1, 28.03.2011                             #
+-- # Version 2.2, 01.04.2011                             #
 -- #######################################################
 
 library IEEE;
@@ -43,7 +43,13 @@ entity REG_FILE is
 
 				OP_A_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- register a output
 				OP_B_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- register b output
-				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0)  -- register c output
+				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- register c output
+
+-- ###############################################################################################
+-- ##			Forwarding Path                                                                     ##
+-- ###############################################################################################
+
+				WB_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)  -- forwarding data & ctrl
 
 			);
 end REG_FILE;
@@ -101,13 +107,22 @@ begin
 	-- ---------------------------------------------------------------------------------------------------
 		WB_DATA_MUX: process(CTRL_IN, MEM_DATA, BP2_DATA)
 		begin
-			-- memory read access
 			if (CTRL_IN(CTRL_MEM_ACC) = '1') and (CTRL_IN(CTRL_MEM_RW) = '0') then
+				-- memory read access --
 				REG_WB_DATA <= MEM_DATA;
-			else -- register/mcr read access
+			else
+				-- register/mcr read access --
 				REG_WB_DATA <= BP2_DATA;
 			end if;
 		end process WB_DATA_MUX;
+
+
+
+	-- Forwarding Path --------------------------------------------------------------------------------
+	-- ---------------------------------------------------------------------------------------------------
+		WB_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= REG_WB_DATA;
+		WB_FW_OUT(FWD_RD_MSB  downto  FWD_RD_LSB)   <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
+		WB_FW_OUT(FWD_WB)                           <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
 
 
 
@@ -120,25 +135,25 @@ begin
 
 			--- One-Hot Virtual Register Select ---
 			case (CTRL_IN(CTRL_RD_3 downto CTRL_RD_0)) is
-				when "0000" => VIRT_REG_SEL := "0000000000000001";
-				when "0001" => VIRT_REG_SEL := "0000000000000010";
-				when "0010" => VIRT_REG_SEL := "0000000000000100";
-				when "0011" => VIRT_REG_SEL := "0000000000001000";
-				when "0100" => VIRT_REG_SEL := "0000000000010000";
-				when "0101" => VIRT_REG_SEL := "0000000000100000";
-				when "0110" => VIRT_REG_SEL := "0000000001000000";
-				when "0111" => VIRT_REG_SEL := "0000000010000000";
-				when "1000" => VIRT_REG_SEL := "0000000100000000";
-				when "1001" => VIRT_REG_SEL := "0000001000000000";
-				when "1010" => VIRT_REG_SEL := "0000010000000000";
-				when "1011" => VIRT_REG_SEL := "0000100000000000";
-				when "1100" => VIRT_REG_SEL := "0001000000000000";
-				when "1101" => VIRT_REG_SEL := "0010000000000000";
-				when "1110" => VIRT_REG_SEL := "0100000000000000";
-				when others => VIRT_REG_SEL := "1000000000000000";
+				when "0000" => VIRT_REG_SEL := "0000000000000001"; -- R0_<mode>
+				when "0001" => VIRT_REG_SEL := "0000000000000010"; -- R1_<mode>
+				when "0010" => VIRT_REG_SEL := "0000000000000100"; -- R2_<mode>
+				when "0011" => VIRT_REG_SEL := "0000000000001000"; -- R3_<mode>
+				when "0100" => VIRT_REG_SEL := "0000000000010000"; -- R4_<mode>
+				when "0101" => VIRT_REG_SEL := "0000000000100000"; -- R5_<mode>
+				when "0110" => VIRT_REG_SEL := "0000000001000000"; -- R6_<mode>
+				when "0111" => VIRT_REG_SEL := "0000000010000000"; -- R7_<mode>
+				when "1000" => VIRT_REG_SEL := "0000000100000000"; -- R8_<mode>
+				when "1001" => VIRT_REG_SEL := "0000001000000000"; -- R9_<mode>
+				when "1010" => VIRT_REG_SEL := "0000010000000000"; -- R10_<mode>
+				when "1011" => VIRT_REG_SEL := "0000100000000000"; -- R11_<mode>
+				when "1100" => VIRT_REG_SEL := "0001000000000000"; -- R12_<mode>
+				when "1101" => VIRT_REG_SEL := "0010000000000000"; -- R13_<mode>
+				when "1110" => VIRT_REG_SEL := "0100000000000000"; -- R14_<mode>
+				when others => VIRT_REG_SEL := "1000000000000000"; -- R15_<mode>
 			end case;
 
-			--- Address Mapping Virtual -> Real ---
+			--- Address Mapping Virtual Register -> Real Register ---
 			REAL_REG_SEL := (others => '0');
 			REAL_REG_SEL(07 downto 00) := VIRT_REG_SEL(07 downto 00);
 
@@ -172,7 +187,7 @@ begin
 			end case;
 
 			--- Synchronous Write ---
-			if falling_edge(CLK) then
+			if rising_edge(CLK) then
 				if ((CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN)) = '1') then
 				
 					for i in 0 to 29 loop
@@ -201,7 +216,7 @@ begin
 			for i in 0 to 7 loop
 				READ_BUS(i) <= REG_FILE(i);
 			end loop;
-			READ_BUS(15) <= PC_IN;
+			READ_BUS(15) <= PC_IN; -- there is just one PC
 			case (MODE_IN) is
 
 				when User32_MODE =>

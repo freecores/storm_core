@@ -6,14 +6,12 @@
 -- # Version 2.4, 18.03.2011                             #
 -- #######################################################
 
-
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 library work;
 use work.STORM_core_package.all;
-
 
 entity ALU is
 	port	(
@@ -169,7 +167,7 @@ begin
 			--- Normal Operation ---
 				RESULT_OUT <= ALU_OUT;
 			end if;
-		
+
 			--- MCR Connection ---
 			MCR_DTA_OUT <= ALU_OUT;
 

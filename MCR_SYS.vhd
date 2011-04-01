@@ -68,8 +68,8 @@ architecture MCR_SYS_STRUCTURE of MCR_SYS is
 	signal	SMSR_UND		: STD_LOGIC_VECTOR(31 downto 0); -- Undefined Instruction Status Reg
 
 	-- Some Cycles Delayed Data --
-	signal	x2DELAYED_PC	: STD_LOGIC_VECTOR(31 downto 0);
-	signal	DELAYED_PC		: STD_LOGIC_VECTOR(31 downto 0);
+	signal	DELAYED_PC	: STD_LOGIC_VECTOR(31 downto 0);
+	signal	DELAYED_PC2	: STD_LOGIC_VECTOR(31 downto 0);
 
 	-- Flag Construction Bus --
 	signal	FLAG_BUS		: STD_LOGIC_VECTOR(31 downto 0);
@@ -198,12 +198,12 @@ begin
 			if rising_edge(CLK) then
 				if (RES = '1') then
 					MCR_PC		 <= (others => '0');
-					x2DELAYED_PC <= (others => '0');
 					MCR_CMSR		 <= (others => '0');
 					MCR_CMSR(SREG_MODE_4 downto SREG_MODE_0) <= Supervisor32_MODE; -- we're the master after rest
 					DELAYED_PC	 <= (others => '0');
+					DELAYED_PC2  <= (others => '0');
 					SMSR_FIQ		 <= (others => '0');
-					SMSR_SVC		 <= (others => '0');
+					SMSR_SVC		 <= x"000000" & "000" & User32_MODE; -- just to make things easier... ;)
 					SMSR_ABT		 <= (others => '0');
 					SMSR_IRQ		 <= (others => '0');
 					SMSR_UND		 <= (others => '0');
@@ -211,7 +211,7 @@ begin
 				else
 					---- PROGRAM COUNTERS --------------------------------------------------------------
 					if (CONT_EXE = '1') then -- load PC with valid interrupt vector
-						MCR_PC <= x"000000" & "000" & INT_VEC ;
+						MCR_PC <= x"000000" & "000" & INT_VEC;
 					elsif (CTRL(CTRL_BRANCH) = '1') then -- taken branch
 						MCR_PC <= MCR_DATA_IN;
 					elsif (HALT_IN = '0') then -- no hold request -> normal operation
@@ -220,7 +220,7 @@ begin
 
 					if (HALT_IN = '0') then -- no hold request -> normal operation
 						DELAYED_PC <= MCR_PC;
-						x2DELAYED_PC <= DELAYED_PC; -- double delayed program counter
+						DELAYED_PC2 <= DELAYED_PC;
 					end if;
 
 
@@ -250,7 +250,7 @@ begin
 
 
 					---- SAVED MACHINE STATUS REGISTER -------------------------------------------------
-					if (CTRL(CTRL_EN) and CONT_EXE) = '1' then -- context up change
+					if (CONT_EXE = '1') then -- context up change
 						case (NEW_MODE) is
 							when FIQ32_MODE			=>	SMSR_FIQ <= MCR_CMSR;
 							when Supervisor32_MODE	=>	SMSR_SVC <= MCR_CMSR;
@@ -322,7 +322,7 @@ begin
 	-- ---------------------------------------------------------------------------------------------------
 		PC1_OUT		<= MCR_PC;		-- current program counter
 		PC2_OUT		<= DELAYED_PC;	-- delayed program counter
-		PC3_OUT		<= x2DELAYED_PC; -- double delayed program counter
+		PC3_OUT		<= DELAYED_PC2; -- x2 delayed pc
 		CMSR_OUT		<= MCR_CMSR;	-- current status register
 		INT_TKN_OUT	<= CONT_EXE;	-- interrupt was taken
 

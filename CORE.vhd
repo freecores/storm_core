@@ -100,6 +100,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal	MS_CARRY				: STD_LOGIC;
 	signal	MS_OVFL				: STD_LOGIC;
 	signal	MS_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0);
+	signal	WB_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0);
 
 	-- ###############################################################################################
 	-- ##			GLOBAL SIGNALS FOR ALL STAGES                                                       ##
@@ -151,15 +152,13 @@ architecture CORE_STRUCTURE of CORE is
 	signal	MEM_BP_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- mem.data and bp2 register
 	signal	MEM_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding path
 	signal	SHIFT_VAL_BUFF		: STD_LOGIC_VECTOR(04 downto 0);
-	signal	PC_1, PC_2			: STD_LOGIC_VECTOR(31 downto 0); -- delayed/current program counter
+	signal	PC_1, PC_2, PC_3	: STD_LOGIC_VECTOR(31 downto 0); -- delayed/current program counter
 	
 	-- ###############################################################################################
 	-- ##			SIGNALS FOR PIPELINE STAGE 4: WRITE BACK                                            ##
 	-- ###############################################################################################
 
 	signal	WB_CTRL				: STD_LOGIC_VECTOR(31 downto 0); -- WB stage control lines
-
-
 
 begin
 	-- #######################################################################################################
@@ -205,7 +204,7 @@ begin
 						PC_HALT_OUT		  => PC_HALT,				-- halt instruction fetch output
 						SREG_IN          => CMSR,					-- current machine status register
 						EXECUTE_INT_IN	  => INT_EXECUTE,			-- execute interupt request
-						STALLS_IN        => STALLS,				-- number of bubbles
+						HOLD_BUS_IN      => STALLS,				-- number of bubbles
 						OP_ADR_OUT       => OP_ADR,				-- operand register addresses
 						IMM_OUT          => IMMEDIATE,			-- immediate output
 						SHIFT_M_OUT      => SHIFT_MOD,			-- shift mode output
@@ -236,7 +235,7 @@ begin
 						CMSR_OUT			=> CMSR,					-- current machine status register
 						PC1_OUT			=> PC_1,					-- current program counter
 						PC2_OUT			=> PC_2,					-- delayed progam counter
-						PC3_OUT			=> open,
+						PC3_OUT			=> PC_3,					-- x2 delayed program counter
 						MCR_DATA_IN		=> MCR_DTA_WR,			-- mcr write data input
 						MCR_DATA_OUT	=> MCR_DTA_RD,			-- mcr read data output
 						EX_FIQ_IN		=> FIQ,					-- external fast interrupt request
@@ -269,7 +268,8 @@ begin
 						PC_IN				=> PC_1,					-- current program counter
 						OP_A_OUT			=> OF_OP_A,				-- register A output
 						OP_B_OUT			=> OF_OP_B,				-- register B output
-						OP_C_OUT       => OF_OP_C				-- register C output
+						OP_C_OUT       => OF_OP_C,				-- register C output
+						WB_FW_OUT		=> WB_FW_PATH			-- write back forwarding path
 					);
 
 	-- Operant Fetch Unit
@@ -292,10 +292,11 @@ begin
 						OP_B_OUT			=> OF_OP_B_OUT,		-- operant B data output
 						SHIFT_VAL_OUT	=> SHIFT_VAL_BUFF,	-- shift operand output
 						BP1_OUT			=> OF_BP1_OUT,			-- bypass data output
-						STALLS_OUT		=> STALLS,				-- insert n bubbles
+						HOLD_BUS_OUT	=> STALLS,				-- insert n bubbles
 						MSU_FW_IN		=> MS_FW_PATH,			-- ms forwarding path
 						ALU_FW_IN		=> ALU_FW_PATH,		-- alu forwarding path
-						MEM_FW_IN		=> MEM_FW_PATH			-- memory forwarding path
+						MEM_FW_IN		=> MEM_FW_PATH,		-- memory forwarding path
+						WB_FW_IN			=> WB_FW_PATH			-- write back forwarding path
 					);
 
 	-- #######################################################################################################
@@ -345,7 +346,7 @@ begin
 						RESULT_OUT		=> EX_RES_OUT,			-- EX result data
 						FLAG_IN			=> CMSR(31 downto 28), -- sreg alu flags input
 						FLAG_OUT			=> ALU_FLAGS,			-- alu flags output
-						PC_IN				=> PC_2,					-- pc for INT_LINK
+						PC_IN				=> PC_3,					-- pc for INT_LINK
 						INT_CALL_IN		=> INT_EXECUTE,		-- this is an interrupt call	
 						MS_CARRY_IN		=> MS_CARRY,			-- ms carry output
 						MS_OVFL_IN		=> MS_OVFL,				-- ms overflow output
@@ -357,7 +358,7 @@ begin
 
 
 	-- #####################################################################################################
-	-- ##			PIPELINE STAGE 4/5: DATA MEMORY ACCESS / DATA WRITE BACK                                  ##
+	-- ##			PIPELINE STAGE 4: DATA MEMORY ACCESS                                                      ##
 	-- #####################################################################################################
 
 	-- Data Memory Access System

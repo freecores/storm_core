@@ -375,16 +375,16 @@ begin
 			CTRL_EX1_BUS(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken sign
 			CTRL_EX1_BUS(CTRL_EN)     <= VALID_INSTR;  -- insert current op validation
 			
-			-- Branch & Link Operation for Interrupt Call --
+			--- Branch & Link Operation for Interrupt Call ---
 			if (EXECUTE_INT_IN = '1') then
-				CTRL_EX1_BUS(CTRL_MEM_ACC)  <= '0'; -- disable memory
-				CTRL_EX1_BUS(CTRL_MREG_ACC) <= '0'; -- disable mcr file
+				CTRL_EX1_BUS(CTRL_MEM_ACC)  <= '0'; -- disable memory access
+				CTRL_EX1_BUS(CTRL_MREG_ACC) <= '0'; -- disable mcr access
 				CTRL_EX1_BUS(CTRL_EN)       <= '1'; -- force enable
 				CTRL_EX1_BUS(CTRL_LINK)     <= '1'; -- force LR pass
 				CTRL_EX1_BUS(CTRL_WB_EN)	 <= '1'; -- force LR write back
 			end if;
 
-			-- Insert RD = LR when performing Link Operations --
+			--- Insert RD = LR when performing Link Operations ---
 			if (EX1_CTRL(CTRL_LINK) = '1') or (EXECUTE_INT_IN = '1') then
 				CTRL_EX1_BUS(CTRL_RD_3 downto CTRL_RD_0) <= C_LR_ADR;
 			end if;

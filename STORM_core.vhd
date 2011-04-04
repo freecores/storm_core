@@ -30,7 +30,6 @@ package STORM_core_package is
   -- ARCHITECTURE CONSTANTS -----------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
    constant STORM_MODE			: boolean	:= TRUE;	-- use STORM extension architecture
-	constant PC_INCREMENT		: natural	:= 1;		-- auto increment for PC
 
   -- DUMMY CYCLES FOR TEMPORAL PIPELINE CONFLICTS -------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -157,6 +156,7 @@ package STORM_core_package is
 	constant Abort32_MODE			: STD_LOGIC_VECTOR(4 downto 0) := "10111";
 	constant IRQ32_MODE				: STD_LOGIC_VECTOR(4 downto 0) := "10010";
 	constant Undefined32_MODE		: STD_LOGIC_VECTOR(4 downto 0) := "11011";
+	constant System32_MODE			: STD_LOGIC_VECTOR(4 downto 0) := "11111";
 
   -- CONDITION OPCODES ----------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------

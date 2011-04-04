@@ -132,7 +132,10 @@ begin
 			FLAG_BUS(SREG_IRQ_DIS) <= MCR_CMSR(SREG_IRQ_DIS); -- keep current interrupt settings
 
 			-- interrupt hirarchie / priority list --
-			if (FIQ_TAKEN = '1') then		-- fast interrupt request
+			if (DAT_TAKEN = '1') then		-- data abort
+				INT_VEC 	<= DAT_INT_VEC;
+				NEW_MODE <= Abort32_MODE;
+			elsif (FIQ_TAKEN = '1') then	-- fast interrupt request
 				INT_VEC  <= FIQ_INT_VEC;
 				NEW_MODE <= FIQ32_MODE;
 				FLAG_BUS(SREG_FIQ_DIS) <= '1'; -- disable FIQ
@@ -140,9 +143,6 @@ begin
 				INT_VEC  <= IRQ_INT_VEC;
 				NEW_MODE <= IRQ32_MODE;
 				FLAG_BUS(SREG_IRQ_DIS) <= '1'; -- disable IRQ
-			elsif (DAT_TAKEN = '1') then	-- data abort
-				INT_VEC 	<= DAT_INT_VEC;
-				NEW_MODE <= Abort32_MODE;
 			elsif (PRF_TAKEN = '1') then	-- prefetch abort
 				INT_VEC 	<= PRF_INT_VEC;
 				NEW_MODE <= Abort32_MODE;
@@ -215,7 +215,13 @@ begin
 					elsif (CTRL(CTRL_BRANCH) = '1') then -- taken branch
 						MCR_PC <= MCR_DATA_IN;
 					elsif (HALT_IN = '0') then -- no hold request -> normal operation
-						MCR_PC <= Std_Logic_Vector(unsigned(MCR_PC) + PC_INCREMENT);
+						if (MCR_CMSR(SREG_THUMB) = '1') then
+						-- THUMB MODE --
+							MCR_PC <= Std_Logic_Vector(unsigned(MCR_PC) + 2);
+						else
+						-- ARM MODE --
+							MCR_PC <= Std_Logic_Vector(unsigned(MCR_PC) + 4);
+						end if;
 					end if;
 
 					if (HALT_IN = '0') then -- no hold request -> normal operation
@@ -238,7 +244,7 @@ begin
 						if (CURRENT_MODE = User32_MODE) or (CTRL(CTRL_MREG_FA) = '1') then -- restricted access for user mode
 							MCR_CMSR <= MCR_DATA_IN(31 downto 28) & MCR_CMSR(27 downto 0);
 						else
-							MCR_CMSR <= MCR_DATA_IN; -- full sreg access
+							MCR_CMSR <= MCR_DATA_IN(31 downto 0); -- full sreg access
 						end if;						
 					elsif (CTRL(CTRL_EN) = '1') then -- automatic access
 						if (CTRL(CTRL_AF) = '1') then -- alter flags

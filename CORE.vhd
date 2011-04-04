@@ -219,7 +219,7 @@ begin
 
 	-- Debugging Stuff
 	-- ------------------------------------------------------------------------------
-	DEBUG_FLAG <= MS_CTRL(CTRL_EN) & EX1_CTRL(CTRL_EN) & MEM_CTRL(CTRL_EN) &  WB_CTRL(CTRL_EN);--CMSR(31 downto 28);
+	DEBUG_FLAG <= MCR_DTA_WR(3 downto 0);--CMSR(31 downto 28);
 
 	-- Machine Control System
 	-- ------------------------------------------------------------------------------

@@ -69,7 +69,7 @@ begin
 	-- ###############################################################################################
 
 	OPCODE_DECODER: process (INSTR_REG, DUAL_OP, EXECUTE_INT_IN, INT_VECTOR_IN)
-		variable temp_3 : std_logic_vector(2 downto 0) := "000";
+		variable temp_3, temp_4 : std_logic_vector(2 downto 0);
 	begin
 
 		--- DEFAULT CONTROL ---
@@ -91,13 +91,14 @@ begin
 			when "00" => -- ALU DATA PROCESSING / SREG ACCESS / MUL(MAC)
 			-- ===================================================================================
 				DEC_CTRL(CTRL_AF)      <= INSTR_REG(20); -- ALTER_FLAGS
-				DEC_CTRL(CTRL_WB_EN)   <= '1'; -- WB_ENABLE
+				DEC_CTRL(CTRL_WB_EN)   <= '1';           -- WB_ENABLE
 				DEC_CTRL(CTRL_CONST)   <= INSTR_REG(25); -- IS_CONST
 				DEC_CTRL(CTRL_MREG_M)  <= INSTR_REG(22); -- CMSR/SMSR access
 				DEC_CTRL(CTRL_MREG_RW) <= INSTR_REG(21); -- read/write access
 				DEC_CTRL(CTRL_MREG_FA) <= not INSTR_REG(16); -- only flag access?
 
 				if ((INSTR_REG(27 downto 22) = "000000") and (INSTR_REG(7 downto 4) = "1001")) then
+				-- MUL/MAC
 				----------------------------------------------------------------------------------
 					DEC_CTRL(CTRL_MS) <= '1'; -- select multiplicator
 					DEC_CTRL(CTRL_RD_3    downto  CTRL_RD_0) <= INSTR_REG(19 downto 16);
@@ -106,6 +107,25 @@ begin
 						DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
 					else -- perform MUL operation
 						DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB;
+					end if;
+					
+				elsif (INSTR_REG(27 downto 23) = "00010") and (INSTR_REG(21 downto 20) = "00") and (INSTR_REG(11 downto 4) = "00001001") then
+				-- Single Data Swap SWP
+				----------------------------------------------------------------------------------
+					OP_ADR_OUT(OP_A_ADR_3  downto OP_A_ADR_0)		<= INSTR_REG(19 downto 16); -- BASE
+					OP_ADR_OUT(OP_C_ADR_3  downto OP_C_ADR_0)		<= INSTR_REG(03 downto 00); -- W_DATA
+					DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= PassA; -- ALU_CTRL = PassA
+					DEC_CTRL(CTRL_MEM_M)									<= INSTR_REG(22); -- DATA QUANTITY
+					DEC_CTRL(CTRL_MEM_ACC)								<= '1'; -- MEM_ACCESS
+					NEXT_DUAL_OP											<= (others => '0');
+					if (DUAL_OP = "00000") then
+						NEXT_DUAL_OP				<= "----1";
+						DEC_CTRL(CTRL_MEM_RW)	<= '0'; -- MEM_READ
+						DEC_CTRL(CTRL_WB_EN)		<= '1'; -- WB EN
+					else
+						NEXT_DUAL_OP				<= (others => '0');
+						DEC_CTRL(CTRL_MEM_RW)	<= '1'; -- MEM_WRITE
+						DEC_CTRL(CTRL_WB_EN)		<= '0'; -- WB EN
 					end if;
 
 				else -- ALU operation / MCR access
@@ -365,37 +385,87 @@ begin
 					DEC_CTRL(CTRL_CONST)  <= '1'; -- IS_CONST
 					DEC_CTRL(CTRL_BRANCH) <= '1'; -- BRANCH_INSTR
 					DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= A_ADD; -- ALU.ADD
-					IMM_OUT(23 downto 0)  <= INSTR_REG(23 downto 0);-- & "00"; -- OFFSET = IMMEDIATE x 4
-					for i in 24 to 31 loop
-						IMM_OUT(i) <= INSTR_REG(22); -- IMMEDIATE sign extension
+					IMM_OUT(25 downto 0)  <= INSTR_REG(23 downto 0) & "00"; -- OFFSET = IMMEDIATE x 4
+					for i in 26 to 31 loop
+						IMM_OUT(i) <= INSTR_REG(23); -- IMMEDIATE sign extension
 					end loop;
 					
 				else -- Block Data Transfer
 				----------------------------------------------------------------------------------
-				NULL;
---					if (DUAL_OP = "00000") then -- start of new block transfer
---					
---						
---					
---					else -- keep on transfering old command
---						if LOAD then
+
+--					OP_ADR_OUT(OP_A_ADR_3 downto OP_A_ADR_0)	<= INSTR_REG(19 downto 16); -- BASE register
+--					DEC_CTRL(CTRL_CONST)								<= '1'; -- add immediate
+--					IMM_OUT												<= x"00000004"; -- index offset is 4
+--					DEC_CTRL(CTRL_MEM_M)								<= '0'; -- 32bit data quantity
+--
+--
+--
+--
+--					OP_ADR_OUT(OP_C_ADR_3 downto OP_C_ADR_0)	<= INSTR_REG(15 downto 12); -- DATA
+--
+--
+--					temp_4 := INSTR_REG(20) & INSTR_REG(24) & INSTR_REG(21);
+--					case temp_4 is -- L_P_W
+--
+--						when "110" => -- load, pre indexing, no write back
+--						----------------------------------------------------------------------------------
+--							DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)		<= INSTR_REG(15 downto 12); -- R_DEST
+--							DEC_CTRL(CTRL_MEM_ACC)							<= '1'; -- MEM_ACCESS
+--							DEC_CTRL(CTRL_MEM_RW)							<= '0'; -- MEM_READ
+--							DEC_CTRL(CTRL_WB_EN)								<= '1'; -- WB EN
+--							NEXT_DUAL_OP										<= (others => '0');
 --							
---						
---						else STORE then
---						
---						end if;					
---					end if;
-				
+--							
+--							if (INSTR_REG(23) = '0') then
+--								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- sub index
+--							else
+--								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- add index
+--							end if;
+
+
+
+							NULL;
+
+
 				end if;
 
 
 
-			when others => -- SOFTWARE INTERRUPT with 24 Bit Tag (ignored by processor)
+			when others => -- COPROCESSOR INTERFACE / SOFTWARE INTERRUPT
 			-- ============================================================================================
-				if (INSTR_REG(25 downto 24) = "11") then
-					DEC_CTRL(CTRL_SWI) <= '1';
+			
+				if (INSTR_REG(25) = '0') then -- COPROCESSOR MEMORY TRANSFER
+				----------------------------------------------------------------------------------
+
+
+					NULL;
+
+
+
+				else
+					if (INSTR_REG(24) = '1') then	-- SOFTWARE INTERRUPT with 24 Bit Tag (ignored by processor)
+					----------------------------------------------------------------------------------
+						DEC_CTRL(CTRL_SWI) <= '1';
+
+					else
+						if (INSTR_REG(4) = '0') then -- COPROCESSOR DATA OPERATION
+						----------------------------------------------------------------------------------
+
+
+							NULL;
+
+
+						else -- COPROCESSOR REGISTER TRANSFER
+						----------------------------------------------------------------------------------
+
+
+							NULL;
+
+
+						end if;
+					end if;
 				end if;
-					
+
 
 		end case;
 

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #       Load/Store Unit for Data Memory Access        #
 -- # *************************************************** #
--- # Version 2.3, 18.03.2011                             #
+-- # Version 2.4, 04.04.2011, Little Endian Access       #
 -- #######################################################
 
 library IEEE;
@@ -133,25 +133,26 @@ begin
 			variable WORD_OUT_TMP : STD_LOGIC_VECTOR(31 downto 0);
 		begin
 
+			-- Offset Detector --
 			case (ADR_BUFFER(1 downto 0)) is
-				when "00" => -- word boundary
-					WORD_OUT_TMP := XMEM_RD_DTA; -- not implemented yet, doing word transfer now
+				when "00" => -- word boundary, no offset
+					WORD_OUT_TMP := XMEM_RD_DTA;
 					BYTE_OUT_TMP := XMEM_RD_DTA(07 downto 00);
 				when "01" => -- one byte offset
-					WORD_OUT_TMP := XMEM_RD_DTA; -- not implemented yet, doing word transfer now
+					WORD_OUT_TMP := XMEM_RD_DTA(07 downto 00) & XMEM_RD_DTA(31 downto 08);
 					BYTE_OUT_TMP := XMEM_RD_DTA(15 downto 08);
 				when "10" => -- two bytes offset
-					WORD_OUT_TMP := XMEM_RD_DTA; -- not implemented yet, doing word transfer now
+					WORD_OUT_TMP := XMEM_RD_DTA(15 downto 00) & XMEM_RD_DTA(31 downto 16);
 					BYTE_OUT_TMP := XMEM_RD_DTA(23 downto 16);
 				when "11" => -- three bytes offset
-					WORD_OUT_TMP := XMEM_RD_DTA; -- not implemented yet, doing word transfer now
+					WORD_OUT_TMP := XMEM_RD_DTA(23 downto 00) & XMEM_RD_DTA(31 downto 24);
 					BYTE_OUT_TMP := XMEM_RD_DTA(31 downto 24);
 				when others => -- undefined
 					WORD_OUT_TMP := (others => '-');
 					BYTE_OUT_TMP := (others => '-');
 			end case;
 
-
+			-- Quantity Data Selector --
 			if (CTRL_IN(CTRL_MEM_M) = '0') then -- Word Transfer
 				DATA_OUT <= WORD_OUT_TMP;
 			else -- Byte Transfer
@@ -171,7 +172,6 @@ begin
 		
 		-- address word --
 		XMEM_ADR  <= ADR_BUFFER;
-
 
 
 end LOAD_STORE_UNIT_STRUCTURE;

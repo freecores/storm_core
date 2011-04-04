@@ -159,7 +159,7 @@ begin
 				OP_B <= ALU_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
 			elsif (MEM_B_MATCH = '1') then
 				OP_B <= MEM_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
-			elsif (WB_A_MATCH = '1') then
+			elsif (WB_B_MATCH = '1') then
 				OP_B <= WB_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
 			else
 				OP_B <= OP_B_IN;
@@ -171,7 +171,7 @@ begin
 				OP_C <= ALU_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
 			elsif (MEM_C_MATCH = '1') then
 				OP_C <= MEM_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
-			elsif (WB_A_MATCH = '1') then
+			elsif (WB_C_MATCH = '1') then
 				OP_C <= WB_FW_IN(FWD_DATA_MSB downto FWD_DATA_LSB);
 			else
 				OP_C <= OP_C_IN;
@@ -205,7 +205,7 @@ begin
 
 			-- Cycles needed to solve the temporal data dependency --
 			HOLD_BUS_OUT(2 downto 1) <= (others => '0'); -- default
-			if ((MSU_MATCH = '1') and (MSU_FW_IN(FWD_MEM_ACC) = '1')) or then
+			if ((MSU_MATCH = '1') and (MSU_FW_IN(FWD_MEM_ACC) = '1')) then --or
 					HOLD_BUS_OUT(2 downto 1) <= "01"; -- OF <- MS mem_data/mcr conflict
 			end if;
 

@@ -13,7 +13,7 @@ library work;
 use work.STORM_core_package.all;
 
 -- ###############################################################################################
--- ##			Interface																									##
+-- ##       Interface                                                                           ##
 -- ###############################################################################################
 
 entity X1_OPCODE_DECODER is
@@ -27,7 +27,7 @@ end X1_OPCODE_DECODER;
 architecture instruction_decoder of X1_OPCODE_DECODER is
 
 -- ###############################################################################################
--- ##			Local Signals																								##
+-- ##       Local Signals                                                                       ##
 -- ###############################################################################################
 
 	-- INPUTS --
@@ -47,7 +47,7 @@ architecture instruction_decoder of X1_OPCODE_DECODER is
 begin
 
 	-- ###############################################################################################
-	-- ##			Internal Signal Connection																				##
+	-- ##       Internal Signal Connection                                                          ##
 	-- ###############################################################################################
 
 	INSTR_REG		<= OPCODE_DATA_IN;
@@ -65,7 +65,7 @@ begin
 
 
 	-- ###############################################################################################
-	-- ##			ARM COMPATIBLE OPCODE DECODER																			##
+	-- ##       ARM COMPATIBLE OPCODE DECODER                                                       ##
 	-- ###############################################################################################
 
 	OPCODE_DECODER: process (INSTR_REG, DUAL_OP, EXECUTE_INT_IN, INT_VECTOR_IN)

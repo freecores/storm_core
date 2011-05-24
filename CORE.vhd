@@ -3,24 +3,25 @@
 -- #               -- TOP ENTITY --               #
 -- #       Created by Stephan Nolting (4788)      #
 -- # +------------------------------------------+ #
--- # Core Components Hierarchy:                   #
--- # - CORE.vhd (this file)                       #
--- #   - STORM_CORE.vhd (package file)            #
--- #   - RES_SYNC.vhd                             #
--- #   - REG_FILE.vhd                             #
--- #   - OPERANT_UNIT.vhd                         #
--- #   - MS_UNIT.vhd                              #
--- #     - MULTIPLICATION_UNIT.vhd                #
--- #     - BARREL_SHIFTER.vhd                     #
--- #   - ALU.vhd                                  #
--- #     - ARITHMETICAL_UNIT.vhd                  #
--- #     - LOGICAL_UNIT.vhd                       #
--- #   - FLOW_CTRL.vhd                            #
--- #   - MCR_SYS.vhd                              #
--- #   - LOAD_STORE_UNIT.vhd                      #
--- #   - X1_OPCODE_DECODER.vhd                    #
+-- #  Core Components Hierarchy:                  #
+-- #  - CORE.vhd (this file)                      #
+-- #    - STORM_CORE.vhd (package file)           #
+-- #    - RES_SYNC.vhd                            #
+-- #    - REG_FILE.vhd                            #
+-- #    - OPERANT_UNIT.vhd                        #
+-- #    - MS_UNIT.vhd                             #
+-- #      - MULTIPLICATION_UNIT.vhd               #
+-- #      - BARREL_SHIFTER.vhd                    #
+-- #    - ALU.vhd                                 #
+-- #      - ARITHMETICAL_UNIT.vhd                 #
+-- #      - LOGICAL_UNIT.vhd                      #
+-- #    - FLOW_CTRL.vhd                           #
+-- #    - WB_UNIT.vhd                             #
+-- #    - MCR_SYS.vhd                             #
+-- #    - LOAD_STORE_UNIT.vhd                     #
+-- #    - X1_OPCODE_DECODER.vhd                   #
 -- # +------------------------------------------+ #
--- # Version 1.1, 18.03.2011                      #
+-- # Version 1.2, 22.04.2011                      #
 -- ################################################
 
 library IEEE;
@@ -33,47 +34,50 @@ use work.STORM_core_package.all;
 entity CORE is
     Port (
 -- ###############################################################################################
--- ##			Global Control Signals                                                              ##
+-- ##       Global Control Signals                                                              ##
 -- ###############################################################################################
 
 				RES				: in  STD_LOGIC; -- global reset input (high active)
 				CLK				: in  STD_LOGIC; -- global clock input
 
 -- ###############################################################################################
--- ##			Instruction Memory Interface                                                        ##
+-- ##       Instruction Memory Interface (only used for debugging)                              ##
 -- ###############################################################################################
 
 				HALT_IF			: in  STD_LOGIC; -- halt instruction fetch
-				INSTR_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- new CTRL word
 				PC_OUT			: out STD_LOGIC_VECTOR(31 downto 0); -- program counter
 
 -- ###############################################################################################
--- ##			Status Information                                                                  ##
+-- ##       Status Information                                                                  ##
 -- ###############################################################################################
 
 				MODE				: out STD_LOGIC_VECTOR(04 downto 0); -- current processor mode
 
 -- ###############################################################################################
--- ##			Debugging Ports                                                                     ##
+-- ##       Debugging Ports                                                                     ##
 -- ###############################################################################################
 
-				DEBUG_FLAG		: out STD_LOGIC_VECTOR(03 downto 0); -- debugging stuff
-				DEBUG_REG		: out STD_LOGIC_VECTOR(15 downto 0); -- debugging stuff
+				DEBUG_FLAG		: out STD_LOGIC_VECTOR(03 downto 0); -- ignore this port
+				DEBUG_REG		: out STD_LOGIC_VECTOR(15 downto 0); -- ignore this port
+				DEBUG_INSTR		: out STD_LOGIC_VECTOR(31 downto 0); -- ignore this port
 
 -- ###############################################################################################
--- ##			Data Memory Interface                                                               ##
+-- ##      Memory Interface                                                                     ##
 -- ###############################################################################################
 
 				MREQ				: out STD_LOGIC; -- memory access in next cycle
 				MEM_ADR			: out STD_LOGIC_VECTOR(31 downto 0); -- memory address
 				MEM_RD_DTA		: in  STD_LOGIC_VECTOR(31 downto 0); -- data core <- memory
 				MEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0); -- data core -> memory
-				MEM_MODE			: out STD_LOGIC; -- byte/word transfer mode
+				MEM_MODE			: out STD_LOGIC; -- byte/word transfer quantity
 				MEM_WE			: out STD_LOGIC; -- write enable
+				MEM_RW			: out STD_LOGIC; -- read/write signal
+				MEM_OPC			: out STD_LOGIC; -- opcode/data fetch
+				MEM_LOCK			: out STD_LOGIC; -- locked access
 				MEM_ABORT		: in  STD_LOGIC; -- memory abort request
 
 -- ###############################################################################################
--- ##			Interrupt Interface                                                                 ##
+-- ##       Interrupt Interface                                                                 ##
 -- ###############################################################################################
 
 				IRQ			: in  STD_LOGIC; -- interrupt request
@@ -149,16 +153,19 @@ architecture CORE_STRUCTURE of CORE is
 	signal	MEM_CTRL				: STD_LOGIC_VECTOR(31 downto 0); -- MEM stage control lines
 	signal	MEM_DATA				: STD_LOGIC_VECTOR(31 downto 0);
 	signal	MEM_DTA_OUT       : STD_LOGIC_VECTOR(31 downto 0); -- mem.data and bp2 register
+	signal	MEM_ADR_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- mem.data address bypass
 	signal	MEM_BP_OUT			: STD_LOGIC_VECTOR(31 downto 0); -- mem.data and bp2 register
 	signal	MEM_FW_PATH			: STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding path
 	signal	SHIFT_VAL_BUFF		: STD_LOGIC_VECTOR(04 downto 0);
 	signal	PC_1, PC_2, PC_3	: STD_LOGIC_VECTOR(31 downto 0); -- delayed/current program counter
+	signal	INSTR_IN				: STD_LOGIC_VECTOR(31 downto 0); -- new instruction word
 	
 	-- ###############################################################################################
 	-- ##			SIGNALS FOR PIPELINE STAGE 4: WRITE BACK                                            ##
 	-- ###############################################################################################
 
 	signal	WB_CTRL				: STD_LOGIC_VECTOR(31 downto 0); -- WB stage control lines
+	signal	WB_DATA_LINE		: STD_LOGIC_VECTOR(31 downto 0); -- data write back line
 
 begin
 	-- #######################################################################################################
@@ -168,13 +175,13 @@ begin
 	-- Reset Syncronizer
 	-- ------------------------------------------------------------------------------
 	gCLK <= CLK;
+
 	Reset_Synchronizer:
 	RES_SYNC
-		port map	(	CLK		=> CLK,								-- external clock
-						RES_IN	=> RES,								-- external reset
-						RES_OUT	=> gRES								-- global active high reset
+	port map	(		CLK		=> CLK,							-- external clock
+						RES_IN	=> RES,							-- external reset
+						RES_OUT	=> gRES							-- global active high reset
 					);
-
 
 
 	-- Instruction Decoder
@@ -182,11 +189,10 @@ begin
 	Instruction_Decoder:
 	X1_OPCODE_DECODER
 		port map	(
-						OPCODE_DATA_IN  => OP_DATA,				-- current instruction word
-						OPCODE_CTRL_IN  => OPC_A,					-- control feedback input
-						OPCODE_CTRL_OUT => OPC_B					-- control lines output
+						OPCODE_DATA_IN  => OP_DATA,			-- current instruction word
+						OPCODE_CTRL_IN  => OPC_A,				-- control feedback input
+						OPCODE_CTRL_OUT => OPC_B				-- control lines output
 					);
-
 
 
 	-- Operation Flow Control System
@@ -194,32 +200,33 @@ begin
 	Operation_Flow_Control:
 	FLOW_CTRL
 		port map	(
-						RES              => gRES,					-- global active high reset
-						CLK              => gCLK,					-- global clock net
-						INSTR_IN			  => INSTR_IN,				-- external instruction input
-						OPCODE_DATA_OUT  => OP_DATA,				-- instruction register output
-						OPCODE_CTRL_IN	  => OPC_B,					-- control lines input
-						OPCODE_CTRL_OUT  => OPC_A,					-- control feedback output
-						EXT_HALT_IN		  => HALT_IF,				-- external halt instr fetch request
-						PC_HALT_OUT		  => PC_HALT,				-- halt instruction fetch output
-						SREG_IN          => CMSR,					-- current machine status register
-						EXECUTE_INT_IN	  => INT_EXECUTE,			-- execute interupt request
-						HOLD_BUS_IN      => STALLS,				-- number of bubbles
-						OP_ADR_OUT       => OP_ADR,				-- operand register addresses
-						IMM_OUT          => IMMEDIATE,			-- immediate output
-						SHIFT_M_OUT      => SHIFT_MOD,			-- shift mode output
-						SHIFT_C_OUT      => SHIFT_VAL,			-- immediate shif value output
-						OF_CTRL_OUT      => OF_CTRL,				-- stage control OF
-						MS_CTRL_OUT      => MS_CTRL,				-- stage control MS
-						EX1_CTRL_OUT     => EX1_CTRL,				-- stage control EX
-						MEM_CTRL_OUT     => MEM_CTRL,				-- stage control MA
-						WB_CTRL_OUT      => WB_CTRL				-- stage control WB
+						RES              => gRES,				-- global active high reset
+						CLK              => gCLK,				-- global clock net
+						INSTR_IN			  => INSTR_IN,			-- external instruction input
+						OPCODE_DATA_OUT  => OP_DATA,			-- instruction register output
+						OPCODE_CTRL_IN	  => OPC_B,				-- control lines input
+						OPCODE_CTRL_OUT  => OPC_A,				-- control feedback output
+						EXT_HALT_IN		  => HALT_IF,			-- external halt instr fetch request
+						PC_HALT_OUT		  => PC_HALT,			-- halt instruction fetch output
+						SREG_IN          => CMSR,				-- current machine status register
+						EXECUTE_INT_IN	  => INT_EXECUTE,		-- execute interupt request
+						HOLD_BUS_IN      => STALLS,			-- number of bubbles
+						OP_ADR_OUT       => OP_ADR,			-- operand register addresses
+						IMM_OUT          => IMMEDIATE,		-- immediate output
+						SHIFT_M_OUT      => SHIFT_MOD,		-- shift mode output
+						SHIFT_C_OUT      => SHIFT_VAL,		-- immediate shif value output
+						OF_CTRL_OUT      => OF_CTRL,			-- stage control OF
+						MS_CTRL_OUT      => MS_CTRL,			-- stage control MS
+						EX1_CTRL_OUT     => EX1_CTRL,			-- stage control EX
+						MEM_CTRL_OUT     => MEM_CTRL,			-- stage control MA
+						WB_CTRL_OUT      => WB_CTRL			-- stage control WB
 					);
 
 
 	-- Debugging Stuff
 	-- ------------------------------------------------------------------------------
 	DEBUG_FLAG <= MCR_DTA_WR(3 downto 0);--CMSR(31 downto 28);
+	DEBUG_INSTR <= OP_DATA;
 
 	-- Machine Control System
 	-- ------------------------------------------------------------------------------
@@ -248,7 +255,7 @@ begin
 
 
 	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 1/5: OPERAND FETCH & INSTRUCITON DECODE / DATA WRITE BACK                    ##
+	-- ##			PIPELINE STAGE 1: OPERAND FETCH & INSTRUCITON DECODE                                        ##
 	-- #######################################################################################################
 
 	-- Data Register File
@@ -263,13 +270,11 @@ begin
 						MODE_IN			=> CMSR(SREG_MODE_4 downto SREG_MODE_0), -- current processor mode
 						DEBUG_R0			=> DEBUG_REG(07 downto 00), -- debugging stuff
 						DEBUG_R1			=> DEBUG_REG(15 downto 08), -- debugging stuff
-						MEM_DATA_IN		=> MEM_DTA_OUT,		-- memory data path
-						BP2_DATA_IN		=> MEM_BP_OUT,			-- alu data path
-						PC_IN				=> PC_1,					-- current program counter
+						WB_DATA_IN		=> WB_DATA_LINE,		-- write back bus
+						PC_IN				=> PC_2,					-- delayed program counter
 						OP_A_OUT			=> OF_OP_A,				-- register A output
 						OP_B_OUT			=> OF_OP_B,				-- register B output
-						OP_C_OUT       => OF_OP_C,				-- register C output
-						WB_FW_OUT		=> WB_FW_PATH			-- write back forwarding path
+						OP_C_OUT       => OF_OP_C				-- register C output
 					);
 
 	-- Operant Fetch Unit
@@ -285,8 +290,8 @@ begin
 						OP_B_IN			=> OF_OP_B,				-- register B input
 						OP_C_IN			=> OF_OP_C,				-- register C input
 						SHIFT_VAL_IN	=> SHIFT_VAL,			-- immediate shift value in
-						PC1_IN			=> PC_1, 				-- current program counter
-						PC2_IN			=> PC_2,					-- delayed program counter
+						PC1_IN			=> PC_2, 				-- delayed program counter
+						PC2_IN			=> PC_3,					-- 2x delayed program counter
 						IMM_IN			=> IMMEDIATE,			-- immediate value
 						OP_A_OUT			=> OF_OP_A_OUT,		-- operand A data output
 						OP_B_OUT			=> OF_OP_B_OUT,		-- operant B data output
@@ -298,6 +303,7 @@ begin
 						MEM_FW_IN		=> MEM_FW_PATH,		-- memory forwarding path
 						WB_FW_IN			=> WB_FW_PATH			-- write back forwarding path
 					);
+
 
 	-- #######################################################################################################
 	-- ##			PIPELINE STAGE 2: MULTIPLICATION & SHIFT                                                    ##
@@ -361,25 +367,49 @@ begin
 	-- ##			PIPELINE STAGE 4: DATA MEMORY ACCESS                                                      ##
 	-- #####################################################################################################
 
-	-- Data Memory Access System
+	-- Memory Access System
 	-- ------------------------------------------------------------------------------
-	Data_Memory_Access:
+	Memory_Access:
 	LOAD_STORE_UNIT
 		port map	(
-						CLK				=> gCLK,					-- global clock net
-						RES				=> gRES,					-- global active high reset
-						CTRL_IN			=> MEM_CTRL,			-- stage flow control
-						MEM_DATA_IN		=> EX_RES_OUT,			-- EX data result
-						MEM_ADR_IN		=> EX_ADR_OUT,			-- memory access address
-						MEM_BP_IN		=> EX_BP1_OUT,			-- bp/write data input
-						DATA_OUT			=> MEM_DTA_OUT,		-- memory read data output
-						BP_OUT			=> MEM_BP_OUT,			-- memory bypass data output
-						LDST_FW_OUT		=> MEM_FW_PATH,		-- mem forwarding path
-						XMEM_ADR			=> MEM_ADR,				-- mem address
-						XMEM_RD_DTA		=> MEM_RD_DTA,			-- mem read data
-						XMEM_WR_DTA		=> MEM_WR_DTA,			-- mem write data
-						XMEM_WE			=> MEM_WE,				-- mem write enable
-						XMEM_MODE		=> MEM_MODE				-- byte/word transfer
+						CLK				=> gCLK,				-- global clock net
+						RES				=> gRES,				-- global reset net
+						CTRL_IN			=> MEM_CTRL,		-- stage control
+						MEM_DATA_IN		=> EX_RES_OUT,		-- EX data result
+						MEM_ADR_IN		=> EX_ADR_OUT,		-- memory access address
+						MEM_BP_IN		=> EX_BP1_OUT,		-- bp/write data input
+						ADR_OUT			=> MEM_ADR_OUT,	-- address bypass output
+						BP_OUT			=> MEM_BP_OUT,		-- bypass(data) output
+						INSTR_ADR_IN	=> PC_1,				-- current program counter
+						LDST_FW_OUT		=> MEM_FW_PATH,	-- memory forwarding path
+						XMEM_ADR			=> MEM_ADR,			-- memory address output
+						XMEM_WR_DTA		=> MEM_WR_DTA,		-- memory write data output
+						XMEM_WE			=> MEM_WE,			-- memory write enable
+						XMEM_RW			=> MEM_RW,			--	read/write
+						XMEM_BW			=> MEM_MODE,		-- memory data quantity
+						XMEM_OPC			=> MEM_OPC,			-- Opcode/data fetch
+						XMEM_LOCK		=> MEM_LOCK			-- locked operation
 					);
 
+
+	-- #####################################################################################################
+	-- ##			PIPELINE STAGE 5: DATA WRITE BACK                                                         ##
+	-- #####################################################################################################
+
+	-- Data Write Back System
+	-- ------------------------------------------------------------------------------
+	Data_Write_Back:
+	WB_UNIT
+		port map	(
+						CLK				=> gCLK,				-- global clock net
+						RES				=> gRES,				-- global reset net
+						CTRL_IN			=> WB_CTRL,			-- stage control
+						ALU_DATA_IN		=> MEM_BP_OUT,		-- alu data input
+						ADR_BUFF_IN		=> MEM_ADR_OUT,	-- address bypass input 
+						WB_DATA_OUT		=> WB_DATA_LINE,	-- data write back line
+						XMEM_RD_DATA	=> MEM_RD_DTA,		-- memory read data
+						INSTR_DAT_OUT	=> INSTR_IN,		-- instruction input
+						WB_FW_OUT		=> WB_FW_PATH		-- forwarding path
+					);
+	
 end CORE_STRUCTURE;

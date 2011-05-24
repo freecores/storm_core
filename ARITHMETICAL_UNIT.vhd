@@ -79,14 +79,14 @@ begin
 					ADD_MODE  <= "110";
 					RESULT    <= ADDER_RES(31 downto 0);
 
-				-- CMP: result = OP_B, compares by F = OP_A + OP_B --
+				-- CMP: result = OP_B, compares by F = OP_A # OP_B --
 				when A_CMP =>
-					ADD_MODE  <= "000";
+					ADD_MODE  <= "001";
 					RESULT    <= OP_B;
 
-				-- CMN: result = OP_A, compares by F = OP_A - OP_B --
+				-- CMN: result = OP_A, compares by F = OP_A + OP_B --
 				when A_CMN =>
-					ADD_MODE  <= "001";
+					ADD_MODE  <= "000";
 					RESULT    <= OP_A;
 				
 				-- Undefined --

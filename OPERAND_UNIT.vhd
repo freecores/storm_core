@@ -188,28 +188,32 @@ begin
 
 
 
-	-- Temporal Data Dependeny Detector and Bubble Inserter --------------------------------------------------
+	-- Temporal Data Dependeny Detector ----------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------------------
-		CYCLE_ARBITER_INPUT: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN)
+		TEMP_DDC: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN)
 		begin
-			-- Data conflicts that cannot be solved by forwarding = Temporal Data Dependencies
-			-- -> Pipeline Stalls (= Bubbles) needed
+			-- Data conflicts that cannot be solved by forwarding <=> Temporal Data Dependencies
+			-- -> Pipeline Stalls & Bubbles needed
 			
-			-- MSU_MATCH only	   => 1 cycle(s) of wait
-			-- MSU_MATCH and mem => 2 cycle(s) of wait
-			-- ALU_MATCH and mem => 2 cycle(s) of wait
-			-- BRANCH				=> 3 cycle(s) of invalid
+			-- MSU_MATCH only	     => 1 cycle(s) HALT_IF
+			-- ALU_MATCH and mem_r => 2 cycle(s) HALT_IF
+			-- MSU_MATCH and mem_r => 3 cycle(s) HALT_IF
 
-			-- HOLD/INVALIDADE enable --
-			HOLD_BUS_OUT(0) <= MSU_MATCH or (ALU_MATCH and ALU_FW_IN(FWD_MEM_ACC));
-
-			-- Cycles needed to solve the temporal data dependency --
-			HOLD_BUS_OUT(2 downto 1) <= (others => '0'); -- default
-			if ((MSU_MATCH = '1') and (MSU_FW_IN(FWD_MEM_ACC) = '1')) then --or
-					HOLD_BUS_OUT(2 downto 1) <= "01"; -- OF <- MS mem_data/mcr conflict
+			if (MSU_MATCH = '1') and (MSU_FW_IN(FWD_MEM_ACC) = '1') then
+				HOLD_BUS_OUT(2 downto 1) <= "11";
+				HOLD_BUS_OUT(0) <= '1';
+			elsif (ALU_MATCH = '1') and (ALU_FW_IN(FWD_MEM_ACC) = '1') then
+				HOLD_BUS_OUT(2 downto 1) <= "10";
+				HOLD_BUS_OUT(0) <= '1';
+			elsif (MSU_MATCH = '1') then
+				HOLD_BUS_OUT(2 downto 1) <= "01";
+				HOLD_BUS_OUT(0) <= '1';
+			else
+				HOLD_BUS_OUT(2 downto 1) <= "00";
+				HOLD_BUS_OUT(0) <= '0';
 			end if;
 
-		end process CYCLE_ARBITER_INPUT;
+		end process TEMP_DDC;
 
 
 
@@ -218,7 +222,7 @@ begin
 		OPERAND_MUX: process(CTRL_IN, PC2_IN, OP_A, OP_B, OP_C, IMM_IN, PC1_IN, SHIFT_VAL_IN)
 		begin
 
-			---- OPERANT A ----------------------------------------------
+			---# OPERANT A #---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_BRANCH) = '1') then -- BRANCH_INSTR signal
 				-- delayed program counter --
@@ -228,7 +232,7 @@ begin
 				OP_A_OUT <= OP_A;
 			end if;
 
-			---- OPERANT B ----------------------------------------------
+			---# OPERANT B #---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_CONST) = '1') then -- CONST signal
 				-- immediate --
@@ -238,7 +242,7 @@ begin
 				OP_B_OUT <= OP_B;
 			end if;
 
-			---- SHIFT VALUE --------------------------------------------
+			---# SHIFT VALUE #---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_SHIFTR) = '1') then -- SHIFT_REG
 				-- fowarding unit port C output --
@@ -248,7 +252,7 @@ begin
 				SHIFT_VAL_OUT <= SHIFT_VAL_IN;
 			end if;
 
-			---- BYPASS DATA --------------------------------------------
+			---# BYPASS DATA #---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_LINK) = '1') then -- LINK signal
 				-- current program counter --

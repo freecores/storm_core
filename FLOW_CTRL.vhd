@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #             Operation Flow Control Unit             #
 -- # *************************************************** #
--- # Version 2.6.2, 01.04.2011                           #
+-- # Version 2.7.0, 25.05.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -73,34 +73,40 @@ architecture FLOW_CTRL_STRUCTURE of FLOW_CTRL is
 -- ###############################################################################################
 
 	-- Instruction Register --
-	signal	INSTR_REG				: STD_LOGIC_VECTOR(31 downto 0);
+	signal	INSTR_REG		: STD_LOGIC_VECTOR(31 downto 0);
 
 	-- Branch System --
-	signal	BRANCH_TAKEN			: STD_LOGIC;
-	signal	PC_IR_HALT				: STD_LOGIC;
-	signal	HALT_GLOBAL_IF			: STD_LOGIC;
+	signal	BRANCH_TAKEN	: STD_LOGIC;
+	signal	PC_IR_HALT		: STD_LOGIC;
+	signal	HALT_GLOBAL_IF	: STD_LOGIC;
 	
 	-- Bubble Generator --
-	signal	INSERT_BUBBLE			: STD_LOGIC;
+	signal	INSERT_BUBBLE	: STD_LOGIC;
 	
 	-- Instruction Validation System --
-	signal	VALID_INSTR				: STD_LOGIC;
+	signal	VALID_INSTR		: STD_LOGIC;
 
 	-- Control Busses --
-	signal	DEC_CTRL					: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MS_CTRL					: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MS_CTRL_INT				: STD_LOGIC_VECTOR(31 downto 0);	
-	signal	EX1_CTRL					: STD_LOGIC_VECTOR(31 downto 0);
-	signal	CTRL_EX1_BUS			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MEM_CTRL					: STD_LOGIC_VECTOR(31 downto 0);
-	signal	WB_CTRL					: STD_LOGIC_VECTOR(31 downto 0);
+	signal	DEC_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	MS_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	MS_CTRL_INT		: STD_LOGIC_VECTOR(31 downto 0);	
+	signal	EX1_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	CTRL_EX1_BUS	: STD_LOGIC_VECTOR(31 downto 0);
+	signal	MEM_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	WB_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
 	
 	-- Operand Control --
-	signal	DUAL_OP					: STD_LOGIC_VECTOR(04 downto 0);
-	signal	NEXT_DUAL_OP			: STD_LOGIC_VECTOR(04 downto 0);
+	signal	DUAL_OP			: STD_LOGIC_VECTOR(04 downto 0);
+	signal	NEXT_DUAL_OP	: STD_LOGIC_VECTOR(04 downto 0);
 
 	-- CTRL Buffer For ALU-Stage --
-	signal	MULTI_OP_HALT			: STD_LOGIC;
+	signal	MULTI_OP_HALT	: STD_LOGIC;
+	
+	-- Manual Data Memory Access --
+	signal	MEM_DAT_ACC		: STD_LOGIC;
+
+	-- Prefetch Output --
+	signal	PRF_OUT			: STD_LOGIC_VECTOR(31 downto 0);
 
 begin
 
@@ -108,25 +114,99 @@ begin
 	-- ##			PIPELINE STAGE 1/5: OPERAND FETCH & INSTRUCITON DECODE / DATA WRITE BACK                    ##
 	-- #######################################################################################################
 
-	-- Pipeline Registers ------------------------------------------------------------------------
+	-- Instruction Fetch Unit --------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		STAGE_BUFFER_1: process(CLK, RES)
+		OP_FETCH_UNIT: process(CLK, RES, INSTR_IN, HOLD_BUS_IN)
+			variable IR_0, IR_1, IR_2, IR_3    : STD_LOGIC_VECTOR(31 downto 00);
+			variable CYCLE_CNT, RD_CNT, WR_CNT : STD_LOGIC_VECTOR(01 downto 00);
+			variable RD_INC, WR_INC, WR_IR_EN  : STD_LOGIC;
+			
 		begin
-			if rising_edge (CLK) then
+
+			-- Cycle Action Counter --
+			if rising_edge(CLK) then
+				if (RES = '1') then -- Reset
+					CYCLE_CNT := (others => '0');
+				elsif (HOLD_BUS_IN(0) = '1') then -- Load counter
+					CYCLE_CNT := HOLD_BUS_IN(2 downto 1);
+				elsif (CYCLE_CNT /= "00") then -- Decrement until zero
+					CYCLE_CNT := Std_Logic_Vector(unsigned(CYCLE_CNT) - 1);
+				end if;
+			end if;
+
+
+			-- Global IR Write Enable
+			if rising_edge(CLK) then
 				if (RES = '1') then
-					INSTR_REG <= (others => '0');
-					-- set 'never condition' for start up --
-					INSTR_REG(31 downto 28) <= COND_NV;
-					DUAL_OP <= (others => '0');
+					WR_IR_EN := '0';
+				elsif (CYCLE_CNT = "00") then
+					WR_IR_EN := '1';
 				else
-					DUAL_OP <= NEXT_DUAL_OP;
-					if (PC_IR_HALT = '0') then
-						-- normal operation --
-						INSTR_REG <= INSTR_IN;
+					WR_IR_EN := '0';
+				end if;
+			end if;
+
+
+			-- RD/WR CNT enable & external CTRL --
+			if (to_integer(unsigned(CYCLE_CNT)) > 1) or (HOLD_BUS_IN(0) = '1') then
+				RD_INC := '0';
+				HALT_GLOBAL_IF <= '1';
+			else
+				RD_INC := '1';
+				HALT_GLOBAL_IF <= '0';
+			end if;
+			if (to_integer(unsigned(CYCLE_CNT)) = 0) then
+				WR_INC := '1';
+			else
+				WR_INC := '0';
+			end if;
+
+
+			-- Read/Write Address Counter --
+			if rising_edge(CLK) then
+				if (RES = '1') then
+					RD_CNT := "11"; -- we need 1 entry difference
+					WR_CNT := "00";
+				else
+					if (RD_INC = '1') then
+						RD_CNT := Std_Logic_Vector(unsigned(RD_CNT) + 1);
+					end if;
+					if (WR_INC = '1') then
+						WR_CNT := Std_Logic_Vector(unsigned(WR_CNT) + 1);
 					end if;
 				end if;
 			end if;
-		end process STAGE_BUFFER_1;
+
+
+			-- Synchronous Instruction Buffer Write --
+			if rising_edge(CLK) then
+				if (RES = '1') then
+					IR_0 := NOP_CMD;
+					IR_1 := NOP_CMD;
+					IR_2 := NOP_CMD;
+					IR_3 := NOP_CMD;
+				elsif (WR_IR_EN = '1') then
+					case (WR_CNT) is
+						when "00"   => IR_0 := INSTR_IN;
+						when "01"   => IR_1 := INSTR_IN;
+						when "10"   => IR_2 := INSTR_IN;
+						when "11"   => IR_3 := INSTR_IN;
+						when others => NULL;
+					end case;
+				end if;
+			end if;
+
+
+			-- Asynchronous Instruction Buffer Read --
+			case (RD_CNT) is
+				when "00"   => INSTR_REG <= IR_0;
+				when "01"   => INSTR_REG <= IR_1;
+				when "10"   => INSTR_REG <= IR_2;
+				when "11"   => INSTR_REG <= IR_3;
+				when others => INSTR_REG <= (others => '-');
+			end case;
+
+		end process OP_FETCH_UNIT;
 
 
 	-- Opcode Decoder Connection -----------------------------------------------------------------
@@ -141,7 +221,7 @@ begin
 
 	-- Stage "Operand Fetch" Control Unit --------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		OF_CTRL_UNIT: process(OPCODE_CTRL_IN, MULTI_OP_HALT, EXT_HALT_IN, INSERT_BUBBLE)
+		OF_CTRL_UNIT: process(OPCODE_CTRL_IN, MULTI_OP_HALT, EXT_HALT_IN, INSERT_BUBBLE, MEM_DAT_ACC, HALT_GLOBAL_IF)
 			variable FORCE_DISABLE : STD_LOGIC;
 		begin
 		
@@ -158,7 +238,7 @@ begin
 			if (OPCODE_CTRL_IN(CTRL_COND_3 downto CTRL_COND_0) = COND_NV) then
 				FORCE_DISABLE := '1';
 			end if;
-			
+
 			--- Multi-Cycle Operation in Progress ---
 			MULTI_OP_HALT <= '1';
 			if (OPCODE_CTRL_IN(90 downto 86) = "00000") then
@@ -166,19 +246,19 @@ begin
 			end if;
 
 			-- Halt Instruction Fetch --
-			PC_IR_HALT  <= HALT_GLOBAL_IF or MULTI_OP_HALT or EXT_HALT_IN;
+			PC_IR_HALT  <= HALT_GLOBAL_IF or MULTI_OP_HALT or EXT_HALT_IN or MEM_DAT_ACC;
 			PC_HALT_OUT <= PC_IR_HALT;
 
 			-- Halt Instruction Processing --
-			DEC_CTRL(CTRL_EN) <= not (EXT_HALT_IN or FORCE_DISABLE or HALT_GLOBAL_IF or INSERT_BUBBLE);
-		
+			DEC_CTRL(CTRL_EN) <= not (EXT_HALT_IN or FORCE_DISABLE or HALT_GLOBAL_IF or INSERT_BUBBLE or MEM_DAT_ACC);
+
 		end process OF_CTRL_UNIT;
 
 
 	-- Pipeline Stage "OPERAND FETCH" CTRL Bus ---------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
 		OF_CTRL_OUT <= DEC_CTRL;
-		
+
 
 	-- #######################################################################################################
 	-- ##			PIPELINE STAGE 2: MULTIPLICATION & SHIFT                                                    ##
@@ -200,64 +280,89 @@ begin
 		end process STAGE_BUFFER_2;
 
 
-	-- Cycle Arbiter -----------------------------------------------------------------------------
+	-- Branch Cycle Arbiter ----------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		CYCLE_ARBITER: process(CLK, RES, HOLD_BUS_IN, BRANCH_TAKEN)
-			variable CA_CNT, CA_CNT_NXT : STD_LOGIC_VECTOR(1 downto 0);
-			variable INV_FF, INV_FF_NXT : STD_LOGIC;
+		BR_CYCLE_ARBITER: process(CLK, RES, BRANCH_TAKEN)
+			variable CA_CNT : STD_LOGIC_VECTOR(1 downto 0);
 		begin
 
-			--- Cycle Counter Input ---
-			if (CA_CNT = "00") then
-				if (BRANCH_TAKEN = '1') then
-					CA_CNT_NXT := "11";
-					INV_FF_NXT := '1';
-				elsif (HOLD_BUS_IN(0) = '1') then
-					CA_CNT_NXT := HOLD_BUS_IN(2 downto 1);
-					INV_FF_NXT := '0';
-				else
-					-- normal operation --
-					CA_CNT_NXT := "00";
-					INV_FF_NXT := '0';
-				end if;
-			else
-				-- counting down --
-				CA_CNT_NXT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
-				INV_FF_NXT := INV_FF;
-			end if;			
-
-			--- Active Cycle Counter ---
+			--- Cycle Counter ---
 			if rising_edge(CLK) then
-				if (RES = '1') then
+				if (RES = '1') then -- reset
 					CA_CNT := (others => '0');
-					INV_FF := '0';
-				else
-					CA_CNT := CA_CNT_NXT;
-					INV_FF := INV_FF_NXT;
+				elsif (BRANCH_TAKEN = '1') then -- restart
+					CA_CNT := "10";
+				elsif (CA_CNT /= "00") then -- decrement until zero
+					CA_CNT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
 				end if;
 			end if;
 
-			--- HALT Output ---
-			HALT_GLOBAL_IF <= '1';
-			if (CA_CNT = "00") and (HOLD_BUS_IN(0) = '0') then
-				HALT_GLOBAL_IF <= '0';
+			--- INSERT NOP ---
+			if (CA_CNT /= "00") or (BRANCH_TAKEN = '1') then
+				INSERT_BUBBLE <= '1';
+			else
+				INSERT_BUBBLE <= '0';
 			end if;
 
-			--- NOP Output ---
-			INSERT_BUBBLE <= INV_FF or BRANCH_TAKEN;
+		end process BR_CYCLE_ARBITER;
 
-		end process CYCLE_ARBITER;
+
+--		CYCLE_ARBITER: process(CLK, RES, HOLD_BUS_IN, BRANCH_TAKEN)
+--			variable CA_CNT, CA_CNT_NXT : STD_LOGIC_VECTOR(2 downto 0);
+--			variable INV_FF, INV_FF_NXT : STD_LOGIC;
+--		begin
+--
+--			--- Cycle Counter Input ---
+--			if (CA_CNT = "000") then
+--				if (BRANCH_TAKEN = '1') then
+--					CA_CNT_NXT := "011";
+--					INV_FF_NXT := '1';
+--				elsif (HOLD_BUS_IN(0) = '1') then
+--					CA_CNT_NXT := '0' & HOLD_BUS_IN(2 downto 1);
+--					INV_FF_NXT := '0';
+--				else
+--					-- normal operation --
+--					CA_CNT_NXT := "000";
+--					INV_FF_NXT := '0';
+--				end if;
+--			else
+--				-- counting down --
+--				CA_CNT_NXT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
+--				INV_FF_NXT := INV_FF;
+--			end if;
+--
+--			--- Cycle Counter ---
+--			if rising_edge(CLK) then
+--				if (RES = '1') then
+--					CA_CNT := (others => '0');
+--					INV_FF := '0';
+--				else
+--					CA_CNT := CA_CNT_NXT;
+--					INV_FF := INV_FF_NXT;
+--				end if;
+--			end if;
+--
+--			--- HALT Output ---
+--			HALT_GLOBAL_IF <= '1';
+--			if (CA_CNT = "000") and (HOLD_BUS_IN(0) = '0') then
+--				HALT_GLOBAL_IF <= '0';
+--			end if;
+--
+--			--- NOP Output ---
+--			INSERT_BUBBLE <= INV_FF or BRANCH_TAKEN;
+--
+--		end process CYCLE_ARBITER;
 
 
 
 	-- Pipeline Stage "MULTIPLY/SHIFT" CTRL Bus --------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		MS_CTRL_ALLOCATION: process(MS_CTRL, INSERT_BUBBLE)
+		MS_CTRL_ALLOCATION: process(MS_CTRL, INSERT_BUBBLE, MS_CTRL_INT)
 		begin
 			MS_CTRL				<= MS_CTRL_INT;
 			MS_CTRL(CTRL_EN)	<= MS_CTRL_INT(CTRL_EN)	and (not INSERT_BUBBLE);
 		end process MS_CTRL_ALLOCATION;
-		
+
 		MS_CTRL_OUT <= MS_CTRL;
 
 
@@ -374,7 +479,7 @@ begin
 			CTRL_EX1_BUS              <= EX1_CTRL;
 			CTRL_EX1_BUS(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken sign
 			CTRL_EX1_BUS(CTRL_EN)     <= VALID_INSTR;  -- insert current op validation
-			
+
 			--- Branch & Link Operation for Interrupt Call ---
 			if (EXECUTE_INT_IN = '1') then
 				CTRL_EX1_BUS(CTRL_MEM_ACC)  <= '0'; -- disable memory access
@@ -413,6 +518,20 @@ begin
 				end if;
 			end if;
 		end process STAGE_BUFFER_4;
+
+
+	-- Manual Data Memory Access -----------------------------------------------------------------
+	-- ----------------------------------------------------------------------------------------------
+		MANUAL_MEM_ACCESS: process(MEM_CTRL, WB_CTRL)
+			variable TEMP_A, TEMP_B : STD_LOGIC;
+		begin
+			-- Hold instruction fetch for at leat 1 cycle when performing data memory access
+			TEMP_A := MEM_CTRL(CTRL_EN) and MEM_CTRL(CTRL_MEM_ACC);
+			-- Hold instruction fetch for 2 cycles when performing a read data memory access
+			TEMP_B := WB_CTRL(CTRL_EN) and WB_CTRL(CTRL_MEM_ACC) and (not WB_CTRL(CTRL_MEM_RW));
+
+			MEM_DAT_ACC <= TEMP_A or TEMP_B;
+		end process MANUAL_MEM_ACCESS;
 
 
 	-- Pipeline Stage "MEMORY" CTRL Bus ----------------------------------------------------------

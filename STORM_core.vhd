@@ -15,11 +15,12 @@
 -- #     - ARITHMETICAL_UNIT.vhd                         #
 -- #     - LOGICAL_UNIT.vhd                              #
 -- #   - FLOW_CTRL.vhd                                   #
+-- #   - WB_UNIT.vhd                                     #
 -- #   - MCR_SYS.vhd                                     #
 -- #   - LOAD_STORE_UNIT.vhd                             #
 -- #   - X1_OPCODE_DECODER.vhd                           #
 -- # +-------------------------------------------------+ #
--- # Version 2.2, 21.03.2011                             #
+-- # Version 2.4, 25.05.2011                             #
 -- #######################################################
 
 library IEEE;
@@ -29,7 +30,8 @@ package STORM_core_package is
 
   -- ARCHITECTURE CONSTANTS -----------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
-   constant STORM_MODE			: boolean	:= TRUE;	-- use STORM extension architecture
+   constant STORM_MODE	: boolean := TRUE; -- use STORM extension architecture
+	constant NOP_CMD		: STD_LOGIC_VECTOR(31 downto 00) := x"F0013007"; -- dummy Instruction
 
   -- DUMMY CYCLES FOR TEMPORAL PIPELINE CONFLICTS -------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -136,17 +138,6 @@ package STORM_core_package is
 	constant DAT_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "10000"; -- going to Abort32_MODE
 	constant IRQ_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "11000"; -- going to IRQ32_MODE
 	constant FIQ_INT_VEC		: STD_LOGIC_VECTOR(4 downto 0) := "11100"; -- going to FIQ32_MODE
-	
-  -- BUG OVERVIEW ---------------------------------------------------------------------------
-  -- -------------------------------------------------------------------------------------------
-	-- The interrupt call handler freezes the system due to continous enable signal generating.
-	-- What the hell is wrong in the execution pipeline stage?!
-	-- -> need examination
-	
-	-- Memory acces cant be done in one single clock cycle... Why?!
-	
-	-- Memory align doesnt work quite well. The read acces of a single byte doesnt appear in
-	-- the correct sub byte of the load word... Why?
 
   -- PROCESSOR MODE CONSTANTS ---------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -179,7 +170,6 @@ package STORM_core_package is
 
   -- COOL WORKING MUSIC ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
-	-- Trace Adkins - Brown Chicken Brown Cow
 	-- Jason Aldean with Kelly Clarkson - Dont You Wanna Stay
 	-- Carrie Underwood - Last Name
 	-- Thompson Square - Are You Gonna Kiss Me Or Not
@@ -195,13 +185,15 @@ package STORM_core_package is
 	-- Laura Bell Bundy - Giddy Up On
 	-- Jerrod Niemann - Lover, Lover
 	-- Craig Morgan - Redneck Yacht Club
-	-- Darius Rucker - This
 	-- Travis Tritt - I'm Gonna Be Somebody
-	-- Three Doors Down - When You're Young
 	-- Edita - The Key
-	-- Johannes Oerding - Morgen
 	-- Nickelback - Never Gonna Be Alone
+	-- Montgomery Gentry - Oughta Be More Songs About
+	-- Jason Aldean - She's Country
+	-- Joe Nichols - The Shape Im In
+	-- Crystal Shawanda - You Can Let Go
 
+	-- Joe Nichols - The Shape Im In
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
 	constant LOGICAL_OP			: STD_LOGIC	:= '0';	
@@ -304,34 +296,35 @@ package STORM_core_package is
 				MODE_IN			: in  STD_LOGIC_VECTOR(04 downto 0);
 				DEBUG_R0			: out STD_LOGIC_VECTOR(07 downto 0);
 				DEBUG_R1			: out STD_LOGIC_VECTOR(07 downto 0);
-				MEM_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
-				BP2_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
+				WB_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				PC_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
 				OP_A_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				WB_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
+				OP_C_OUT			: out STD_LOGIC_VECTOR(31 downto 0)
 			);
   end component;
 
-  -- COMPONENT Data Memory Interface --------------------------------------------------------
+  -- COMPONENT Memory Interface -------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   component LOAD_STORE_UNIT
-	 port	(
+    port (
 				CLK				: in  STD_LOGIC;
 				RES				: in  STD_LOGIC;
 				CTRL_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_ADR_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_BP_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
-				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				ADR_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				INSTR_ADR_IN	: in  STD_LOGIC_VECTOR(31 downto 0);
 				LDST_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0);
 				XMEM_ADR			: out STD_LOGIC_VECTOR(31 downto 0);
-				XMEM_RD_DTA		: in  STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_WE			: out STD_LOGIC;
-				XMEM_MODE		: out STD_LOGIC
+				XMEM_RW			: out STD_LOGIC;
+				XMEM_BW			: out STD_LOGIC;
+				XMEM_OPC			: out STD_LOGIC;
+				XMEM_LOCK		: out STD_LOGIC
 			);
   end component;
 
@@ -473,6 +466,22 @@ package STORM_core_package is
 				L_CARRY_IN	: in  STD_LOGIC;
 				FLAG_OUT 	: out STD_LOGIC_VECTOR(03 downto 0);
 				CTRL			: in  STD_LOGIC_VECTOR(02 downto 0)
+			);
+  end component;
+
+  -- Write Back Unit ------------------------------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+    component WB_UNIT
+    port	(
+				CLK				: in  STD_LOGIC;
+				RES				: in  STD_LOGIC;
+				CTRL_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
+				ALU_DATA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
+				ADR_BUFF_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
+				WB_DATA_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
+				XMEM_RD_DATA	: in  STD_LOGIC_VECTOR(31 downto 0);
+				INSTR_DAT_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
+				WB_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
 			);
   end component;
 

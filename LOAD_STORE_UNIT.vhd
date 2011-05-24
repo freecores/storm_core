@@ -1,9 +1,9 @@
 -- #######################################################
 -- #     < STORM CORE PROCESSOR by Stephan Nolting >     #
 -- # *************************************************** #
--- #       Load/Store Unit for Data Memory Access        #
+-- # Load/Store Unit for Data/Instruction Memory Access  #
 -- # *************************************************** #
--- # Version 2.4, 04.04.2011, Little Endian Access       #
+-- # Version 2.4, 17.04.2011, Little Endian Access       #
 -- #######################################################
 
 library IEEE;
@@ -30,34 +30,40 @@ port	(
 				MEM_ADR_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 				MEM_BP_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
 
-				DATA_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
+				ADR_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				
+
+				INSTR_ADR_IN	: in  STD_LOGIC_VECTOR(31 downto 0);
+
 -- ###############################################################################################
 -- ##			Forwarding Path                                                                     ##
 -- ###############################################################################################
 
-				LDST_FW_OUT	: out STD_LOGIC_VECTOR(40 downto 0);
+				LDST_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0);
 
 -- ###############################################################################################
 -- ##			External Memory Interface                                                           ##
 -- ###############################################################################################
 
-				XMEM_ADR			: out STD_LOGIC_VECTOR(31 downto 0);
-				XMEM_RD_DTA		: in  STD_LOGIC_VECTOR(31 downto 0);
-				XMEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0);
-				XMEM_WE			: out STD_LOGIC;
-				XMEM_MODE		: out STD_LOGIC
-				
+				XMEM_ADR			: out STD_LOGIC_VECTOR(31 downto 0); -- Address Output
+				XMEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0); -- Data Output
+				XMEM_WE			: out STD_LOGIC; -- Write Enable
+				XMEM_RW			: out STD_LOGIC; -- Read/write signal
+				XMEM_BW			: out STD_LOGIC; -- Byte/Word Quantity
+				XMEM_OPC			: out STD_LOGIC; -- Instruction/Data fetch
+				XMEM_LOCK		: out STD_LOGIC  -- Locked Memory Access
+
 		);
 end LOAD_STORE_UNIT;
 
 architecture LOAD_STORE_UNIT_STRUCTURE of LOAD_STORE_UNIT is
 
-	-- local signals --
+	-- Pipeline Regs --
 	signal	DATA_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
 	signal	ADR_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
 	signal	BP_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
+
+	-- Local Signals --
 	signal	BP_TEMP		: STD_LOGIC_VECTOR(31 downto 0);
 
 begin
@@ -78,6 +84,10 @@ begin
 				end if;
 			end if;
 		end process MEM_BUFFER;
+		
+		-- Address Output --
+		ADR_OUT <= ADR_BUFFER;
+
 
 
 	-- Bypass Multiplexer ---------------------------------------------------------------------
@@ -90,88 +100,62 @@ begin
 				BP_TEMP <= BP_BUFFER;
 			end if;
 		end process BP_MUX;
-		
+
+		-- Stage Bypass Output --
 		BP_OUT <= BP_TEMP;
 
 
-	-- Forwarding CTRL Path -------------------------------------------------------------------
+
+	-- Forwarding Path ------------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB) <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
-		LDST_FW_OUT(FWD_WB) <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
+		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB)     <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
+		LDST_FW_OUT(FWD_WB)                           <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
+		LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
 
 
-	-- Forwarding DATA Path -------------------------------------------------------------------
+
+	-- External Memory Interface --------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		MEM_FORWARD_MUX: process(CTRL_IN(CTRL_MEM_ACC), CTRL_IN(CTRL_MEM_RW))
+		MEM_DATA_INTERFACE: process(CLK, RES, CTRL_IN, BP_BUFFER)
+			variable OUTPUT_DATA_BUFFER : STD_LOGIC_VECTOR(31 downto 0);
 		begin
-			-- memory read access
-			if (CTRL_IN(CTRL_MEM_ACC) = '1') and (CTRL_IN(CTRL_MEM_RW) = '0') then
-				LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= XMEM_RD_DTA;
-			else -- register/mcr read access
-				LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
+		-- Output write data on the falling edge
+
+			--- DATA/INSTR Selector ---
+			if ((CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC)) = '0') then
+				XMEM_ADR  <= INSTR_ADR_IN; -- Instruction Address
+				XMEM_OPC  <= '1';          -- Instruction Fetch
+				XMEM_RW   <= '0';          -- Read Access
+				XMEM_BW   <= '0';          -- Word Quantity
+				XMEM_LOCK <= '0';          -- not implemented yet
+			else
+				XMEM_ADR  <= ADR_BUFFER;           -- Data Address
+				XMEM_OPC  <= '0';                  -- Data Fetch
+				XMEM_RW   <= CTRL_IN(CTRL_MEM_RW); -- Read/Write
+				XMEM_BW   <= CTRL_IN(CTRL_MEM_M);  -- Data Quantity
+				XMEM_LOCK <= '0';                  -- not implemented yet
 			end if;
-		end process MEM_FORWARD_MUX;
-	
 
-	-- Output Data Alignment ------------------------------------------------------------------
-	-- -------------------------------------------------------------------------------------------
-		WRITE_DATA_ALIGN: process(CTRL_IN(CTRL_MEM_M), BP_BUFFER)
-		begin
+			--- Output Data Alignment ---
 			if (CTRL_IN(CTRL_MEM_M) = '0') then -- Word Transfer
-				XMEM_WR_DTA <= BP_BUFFER;
+				OUTPUT_DATA_BUFFER := BP_BUFFER;
 			else -- Byte Transfer
-				XMEM_WR_DTA <= BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0) &
-									BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0);
-			end if;
-		end process WRITE_DATA_ALIGN;
-
-
-	-- Input Data Alignment -------------------------------------------------------------------
-	-- -------------------------------------------------------------------------------------------
-		READ_DATA_ALIGN: process(CTRL_IN(CTRL_MEM_M), ADR_BUFFER(1 downto 0), XMEM_RD_DTA)
-			variable BYTE_OUT_TMP : STD_LOGIC_VECTOR(07 downto 0);
-			variable WORD_OUT_TMP : STD_LOGIC_VECTOR(31 downto 0);
-		begin
-
-			-- Offset Detector --
-			case (ADR_BUFFER(1 downto 0)) is
-				when "00" => -- word boundary, no offset
-					WORD_OUT_TMP := XMEM_RD_DTA;
-					BYTE_OUT_TMP := XMEM_RD_DTA(07 downto 00);
-				when "01" => -- one byte offset
-					WORD_OUT_TMP := XMEM_RD_DTA(07 downto 00) & XMEM_RD_DTA(31 downto 08);
-					BYTE_OUT_TMP := XMEM_RD_DTA(15 downto 08);
-				when "10" => -- two bytes offset
-					WORD_OUT_TMP := XMEM_RD_DTA(15 downto 00) & XMEM_RD_DTA(31 downto 16);
-					BYTE_OUT_TMP := XMEM_RD_DTA(23 downto 16);
-				when "11" => -- three bytes offset
-					WORD_OUT_TMP := XMEM_RD_DTA(23 downto 00) & XMEM_RD_DTA(31 downto 24);
-					BYTE_OUT_TMP := XMEM_RD_DTA(31 downto 24);
-				when others => -- undefined
-					WORD_OUT_TMP := (others => '-');
-					BYTE_OUT_TMP := (others => '-');
-			end case;
-
-			-- Quantity Data Selector --
-			if (CTRL_IN(CTRL_MEM_M) = '0') then -- Word Transfer
-				DATA_OUT <= WORD_OUT_TMP;
-			else -- Byte Transfer
-				DATA_OUT <= x"000000" & BYTE_OUT_TMP; -- fill with zeros
+				OUTPUT_DATA_BUFFER := BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0) &
+											 BP_BUFFER(7 downto 0) & BP_BUFFER(7 downto 0);
 			end if;
 
-		end process READ_DATA_ALIGN;
+			--- Synchronized Data & Ctrl ---
+			if falling_edge(CLK) then
+				if (RES = '1') then
+					XMEM_WR_DTA <= (others => '0'); -- write data ouput
+					XMEM_WE     <= '0'; -- data write enable
+				else
+					XMEM_WR_DTA <= OUTPUT_DATA_BUFFER;
+					XMEM_WE     <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC) and CTRL_IN(CTRL_MEM_RW);
+				end if;
+			end if;
 
-
-	-- External Memory Control Interface ------------------------------------------------------
-	-- -------------------------------------------------------------------------------------------
-		-- write enable --
-		XMEM_WE   <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC) and CTRL_IN(CTRL_MEM_RW);
-		
-		-- byte/word transfer --
-		XMEM_MODE <= CTRL_IN(CTRL_MEM_M);
-		
-		-- address word --
-		XMEM_ADR  <= ADR_BUFFER;
+		end process MEM_DATA_INTERFACE;
 
 
 end LOAD_STORE_UNIT_STRUCTURE;

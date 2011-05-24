@@ -199,7 +199,7 @@ begin
 				if (RES = '1') then
 					MCR_PC		 <= (others => '0');
 					MCR_CMSR		 <= (others => '0');
-					MCR_CMSR(SREG_MODE_4 downto SREG_MODE_0) <= Supervisor32_MODE; -- we're the master after rest
+					MCR_CMSR(SREG_MODE_4 downto SREG_MODE_0) <= Supervisor32_MODE; -- we're the boss after rest
 					DELAYED_PC	 <= (others => '0');
 					DELAYED_PC2  <= (others => '0');
 					SMSR_FIQ		 <= (others => '0');
@@ -210,7 +210,7 @@ begin
 
 				else
 					---- PROGRAM COUNTERS --------------------------------------------------------------
-					if (CONT_EXE = '1') then -- load PC with valid interrupt vector
+					if (CONT_EXE = '1') then -- load PC with interrupt vector
 						MCR_PC <= x"000000" & "000" & INT_VEC;
 					elsif (CTRL(CTRL_BRANCH) = '1') then -- taken branch
 						MCR_PC <= MCR_DATA_IN;
@@ -225,8 +225,8 @@ begin
 					end if;
 
 					if (HALT_IN = '0') then -- no hold request -> normal operation
-						DELAYED_PC <= MCR_PC;
 						DELAYED_PC2 <= DELAYED_PC;
+						DELAYED_PC  <= MCR_PC;
 					end if;
 
 
@@ -326,9 +326,21 @@ begin
 
 	-- MCR Data Output --------------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
-		PC1_OUT		<= MCR_PC;		-- current program counter
-		PC2_OUT		<= DELAYED_PC;	-- delayed program counter
-		PC3_OUT		<= DELAYED_PC2; -- x2 delayed pc
+--		DELAY_UNIT: process(CLK, RES, HALT_IN, MCR_PC, DELAYED_PC, DELAYED_PC2)
+--		begin
+--			if rising_edge(CLK) then
+--				if (RES = '1') then
+--					PC2_OUT <= (others => '0');
+--					PC3_OUT <= (others => '0');
+--				elsif (HALT_IN = '0') then
+					PC2_OUT <= DELAYED_PC;	-- delayed program counter
+					PC3_OUT <= DELAYED_PC2; -- x2 delayed pc
+--				end if;
+--			end if;
+--		end process DELAY_UNIT;
+		
+		PC1_OUT <= MCR_PC; -- current program counter
+		
 		CMSR_OUT		<= MCR_CMSR;	-- current status register
 		INT_TKN_OUT	<= CONT_EXE;	-- interrupt was taken
 

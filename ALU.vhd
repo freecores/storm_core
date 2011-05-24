@@ -51,7 +51,6 @@ entity ALU is
 -- ###############################################################################################
 
 				MREQ_OUT			: out STD_LOGIC;							-- memory request signal
-				MSEQ_OUT			: out STD_LOGIC;							-- sequential mem request
 
 -- ###############################################################################################
 -- ##			Forwarding Path                                                                     ##
@@ -101,7 +100,6 @@ begin
 
 	-- Forwarding Paths ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		-- MREG_READ_ACCESS & MEM_READ_ACCESS & STAGE_ENABLE & R_DEST 
 		ALU_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= ALU_OUT(31 downto 0);
 		ALU_FW_OUT(FWD_RD_MSB   downto   FWD_RD_LSB) <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
 		
@@ -139,20 +137,15 @@ begin
 							);
 
 
-		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3), CTRL(CTRL_MS))
+		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3))
 		begin
---			if (CTRL(CTRL_MS) = '1') then -- MULTIPLICATION
---				ALU_OUT  <= ARITH_RES;
---				FLAG_OUT <= MS_FLAG;
---			else -- SHIFT
-				if (CTRL(CTRL_ALU_FS_3) = LOGICAL_OP) then -- LOGICAL OPERATION
-					ALU_OUT  <= LOGIC_RES;
-					FLAG_OUT <= LOGIC_FLAG_OUT;
-				else -- ARITHMETICAL OPERATION
-					ALU_OUT  <= ARITH_RES;
-					FLAG_OUT <= ARITH_FLAG_OUT;
-				end if;
---			end if;
+			if (CTRL(CTRL_ALU_FS_3) = LOGICAL_OP) then -- LOGICAL OPERATION
+				ALU_OUT  <= LOGIC_RES;
+				FLAG_OUT <= LOGIC_FLAG_OUT;
+			else -- ARITHMETICAL OPERATION
+				ALU_OUT  <= ARITH_RES;
+				FLAG_OUT <= ARITH_FLAG_OUT;
+			end if;
 		end process OPERATION_RESULT_MUX;
 
 
@@ -183,23 +176,26 @@ begin
 		BP_MANAGER: process (BP1, PC_IN, CTRL)
 		begin
 			if (INT_CALL_IN = '1') then
+				-- Interrupt Call --
 				BP1_OUT <= PC_IN;
 			else
+				-- ALU Operation --
 				BP1_OUT <= BP1;
 			end if;
 		end process BP_MANAGER;
 
 
 
-	-- Memory Request Signal -------------------------------------------------------------------------------
-	-- --------------------------------------------------------------------------------------------------------
-		MEM_REQ: process(CTRL(CTRL_EN), CTRL(CTRL_MEM_ACC))
-		begin
-			MREQ_OUT <= '0';
-			if (CTRL(CTRL_EN) = '1') and (CTRL(CTRL_MEM_ACC) = '1') then
-				MREQ_OUT <= '1';
-			end if;		
-		end process MEM_REQ;
+--	-- Memory Request Signal -------------------------------------------------------------------------------
+--	-- --------------------------------------------------------------------------------------------------------
+--		MEM_REQ: process(CTRL(CTRL_EN), CTRL(CTRL_MEM_ACC))
+--		begin
+--			MREQ_OUT <= '0';
+--			if (CTRL(CTRL_EN) = '1') and (CTRL(CTRL_MEM_ACC) = '1') then
+--				MREQ_OUT <= '1';
+--			end if;		
+--		end process MEM_REQ;
+	MREQ_OUT <= '1';
 
 
 

@@ -79,7 +79,7 @@ architecture MCR_SYS_STRUCTURE of MCR_SYS is
 	signal	NEW_MODE		: STD_LOGIC_VECTOR(04 downto 0);
 	signal	INT_VEC		: STD_LOGIC_VECTOR(04 downto 0);
 
-	-- External Interrupt Syncs --
+	-- External Interrupt Sync FF --
 	signal	FIQ_SYNC		: STD_LOGIC;
 	signal	IRQ_SYNC		: STD_LOGIC;
 	signal	ABT_SYNC		: STD_LOGIC;
@@ -173,7 +173,7 @@ begin
 
 	-- Machine Control Registers ----------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
-		MREG_WRITE_ACCESS: process(CLK, CTRL, MCR_CMSR)
+		MREG_WRITE_ACCESS: process(CLK, CTRL, MCR_CMSR, SMSR_FIQ, SMSR_SVC, SMSR_ABT, SMSR_IRQ, SMSR_UND)
 			variable MWR_SMSR, MWR_CMSR	: STD_LOGIC;
 			variable CURRENT_MODE			: STD_LOGIC_VECTOR(4 downto 0);
 			variable CONT_RET					: STD_LOGIC;
@@ -267,7 +267,7 @@ begin
 						end case;
 					elsif (CTRL(CTRL_EN) and MWR_SMSR) = '1' then -- manual data write
 						if (CTRL(CTRL_MREG_FA) = '1') then
-							-- only flag access --
+							-- flag access only --
 							case (CURRENT_MODE) is
 								when FIQ32_MODE			=>	SMSR_FIQ <= MCR_DATA_IN(31 downto 28) & SMSR_FIQ(27 downto 0);
 								when Supervisor32_MODE	=>	SMSR_SVC <= MCR_DATA_IN(31 downto 28) & SMSR_SVC(27 downto 0);
@@ -298,7 +298,7 @@ begin
 
 	-- MCR Read Access --------------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
-		MREG_READ_ACCESS: process(CTRL)
+		MREG_READ_ACCESS: process(CTRL, MCR_CMSR, SMSR_FIQ, SMSR_SVC, SMSR_ABT, SMSR_IRQ, SMSR_UND)
 			variable MRD_SMSR, MRD_CMSR : STD_LOGIC;
 		begin
 			-- manual SMSR_mode read access request --
@@ -326,23 +326,22 @@ begin
 
 	-- MCR Data Output --------------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
---		DELAY_UNIT: process(CLK, RES, HALT_IN, MCR_PC, DELAYED_PC, DELAYED_PC2)
---		begin
---			if rising_edge(CLK) then
---				if (RES = '1') then
---					PC2_OUT <= (others => '0');
---					PC3_OUT <= (others => '0');
---				elsif (HALT_IN = '0') then
-					PC2_OUT <= DELAYED_PC;	-- delayed program counter
-					PC3_OUT <= DELAYED_PC2; -- x2 delayed pc
---				end if;
---			end if;
---		end process DELAY_UNIT;
-		
-		PC1_OUT <= MCR_PC; -- current program counter
-		
-		CMSR_OUT		<= MCR_CMSR;	-- current status register
-		INT_TKN_OUT	<= CONT_EXE;	-- interrupt was taken
+		DELAY_UNIT: process(CLK, RES, HALT_IN)
+		begin
+			if rising_edge(CLK) then
+				if (RES = '1') then
+					PC2_OUT <= (others => '0');
+					PC3_OUT <= (others => '0');
+				elsif (HALT_IN = '0') then
+					PC2_OUT <= DELAYED_PC;  -- delayed program counter
+					PC3_OUT <= DELAYED_PC2; -- 2x delayed pc	
+				end if;
+			end if;
+		end process DELAY_UNIT;
+
+		PC1_OUT     <= MCR_PC;   -- current program counter	
+		CMSR_OUT    <= MCR_CMSR; -- current status register
+		INT_TKN_OUT <= CONT_EXE; -- interrupt was taken
 
 
 end MCR_SYS_STRUCTURE;

@@ -109,8 +109,8 @@ begin
 		FLAG_OUT(1) <= '1' when (TEMP_ZERO = x"00000000") else '0';
 		
 		-- negative flag --
-		FLAG_OUT(2) <=	(OP_A(31) and OP_B(31)) when (CTRL = L_TST) else
-							(OP_A(31) xor OP_B(31)) when (CTRL = L_TEQ) else RESULT_TMP(31);
+		FLAG_OUT(2) <=	(OP_A(31) and OP_B(31)) when (CTRL = "110") else
+							(OP_A(31) xor OP_B(31)) when (CTRL = "111") else RESULT_TMP(31);
 		
 		-- overflow flag --
 		FLAG_OUT(3) <=	BS_OVF_IN; -- keep barrelsshifter's overflow flag

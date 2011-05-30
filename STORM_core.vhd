@@ -7,6 +7,7 @@
 -- #   - STORM_CORE.vhd (this file)                      #
 -- #   - RES_SYNC.vhd                                    #
 -- #   - REG_FILE.vhd                                    #
+-- #     - ADR_TRANSLATOR (same file)                    #
 -- #   - OPERANT_UNIT.vhd                                #
 -- #   - MS_UNIT.vhd                                     #
 -- #     - MULTIPLICATION_UNIT.vhd                       #
@@ -30,16 +31,16 @@ package STORM_core_package is
 
   -- ARCHITECTURE CONSTANTS -----------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
-   constant STORM_MODE	: boolean := TRUE; -- use STORM extension architecture
-	constant NOP_CMD		: STD_LOGIC_VECTOR(31 downto 00) := x"F0013007"; -- dummy Instruction
+   constant STORM_MODE     : boolean := TRUE; -- use STORM extension architecture
+	constant USE_MEM_RD_FF  : boolean := FALSE; -- memory read flipflop (falling edge)
+	constant NOP_CMD        : STD_LOGIC_VECTOR(31 downto 00) := x"F0013007"; -- Dummy OPCODE
 
   -- DUMMY CYCLES FOR TEMPORAL PIPELINE CONFLICTS -------------------------------------------
   -- -------------------------------------------------------------------------------------------
- 	constant DC_TAKEN_BRANCH	: STD_LOGIC_VECTOR(1 downto 0) := "10"; -- dc after taken branch
-	constant OF_MS_REG_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ms reg/reg conflict
-	constant OF_MS_MCR_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ms reg/mcr conflict
-	constant OF_MS_MEM_DD		: STD_LOGIC_VECTOR(1 downto 0) := "10"; -- of-ms reg/mem conflict
-	constant OF_EX_MEM_DD		: STD_LOGIC_VECTOR(1 downto 0) := "01"; -- of-ex reg/mem conflict
+ 	constant DC_TAKEN_BRANCH	: natural := 1; -- empty cycles after taken branch
+	constant OF_MS_REG_DD		: natural := 1; -- of-ms reg/reg conflict
+	constant OF_EX_MEM_DD		: natural := 2; -- of-ex reg/mem conflict
+	constant OF_MS_MEM_DD		: natural := 3; -- of-ms reg/mem conflict
 
   -- ADDRESS CONSTANTS ----------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -66,7 +67,8 @@ package STORM_core_package is
 	constant FWD_CY_NEED			: natural := 37; -- Carry flag is needed
 	constant FWD_MCR_R_ACC		: natural := 38; -- MCR Read Access
 	constant FWD_MCR_W_ACC		: natural := 39; -- MCR will be changed somehow
-	constant FWD_MEM_ACC			: natural := 40; -- Memory Read Access
+	constant FWD_MEM_R_ACC		: natural := 40; -- Memory Read Access
+	constant FWD_MEM_ACC			: natural := 41; -- Memory Access
 
   -- CTRL BUS LOCATIONS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -90,12 +92,12 @@ package STORM_core_package is
 	constant CTRL_COND_2			: natural := 14; -- condition code bit 2
 	constant CTRL_COND_3			: natural := 15; -- condition code bit 3
 
-	constant CTRL_AF				: natural := 16; -- alter alu flags
-	constant CTRL_ALU_FS_0		: natural := 17; -- alu function set bit 0
-	constant CTRL_ALU_FS_1		: natural := 18; -- alu function set bit 1
-	constant CTRL_ALU_FS_2		: natural := 19; -- alu function set bit 2
-	constant CTRL_ALU_FS_3		: natural := 20; -- alu function set bit 3
-	constant CTRL_MS				: natural := 21; -- '0' = shift, '1' = multiply
+	constant CTRL_MS				: natural := 16; -- '0' = shift, '1' = multiply
+	constant CTRL_AF				: natural := 17; -- alter alu flags
+	constant CTRL_ALU_FS_0		: natural := 18; -- alu function set bit 0
+	constant CTRL_ALU_FS_1		: natural := 19; -- alu function set bit 1
+	constant CTRL_ALU_FS_2		: natural := 20; -- alu function set bit 2
+	constant CTRL_ALU_FS_3		: natural := 21; -- alu function set bit 3
 
 	constant CTRL_MEM_ACC		: natural := 22; -- '1' = Access memory
 	constant CTRL_MEM_M			: natural := 23; -- '0' = word, '1' = byte
@@ -106,7 +108,7 @@ package STORM_core_package is
 	constant CTRL_MREG_RW		: natural := 27; -- '0' = read, '1' = write
 	constant CTRL_MREG_FA		: natural := 28; -- '0' = whole access, '1' = flag access
 
-	---- Progress Redefinitions ----
+	-- Progress Redefinitions --
 	constant CTRL_MODE_0			: natural := CTRL_AF;       -- mode bit 0
 	constant CTRL_MODE_1			: natural := CTRL_ALU_FS_0; -- mode bit 1
 	constant CTRL_MODE_2			: natural := CTRL_ALU_FS_1; -- mode bit 2
@@ -168,17 +170,14 @@ package STORM_core_package is
 	constant COND_AL		: STD_LOGIC_VECTOR(3 downto 0) := "1110";
 	constant COND_NV		: STD_LOGIC_VECTOR(3 downto 0) := "1111";
 
-  -- COOL WORKING MUSIC ---------------------------------------------------------------------
+  -- COOL WORKING MUSIC - Ignore this part if you dont like country ;) ----------------------
   -- -------------------------------------------------------------------------------------------
-	-- Jason Aldean with Kelly Clarkson - Dont You Wanna Stay
 	-- Carrie Underwood - Last Name
-	-- Thompson Square - Are You Gonna Kiss Me Or Not
 	-- Sugarland - Something More
 	-- Taylor Swift - Today Was A Fairy Tale
 	-- Montgomery Gentry - One In Every Crowd
 	-- Tim McGraw - Something Like That
 	-- Trace Adkins - You're Gonna Miss This
-	--	Jason Aldean - Amarillo Sky
 	--	Rascal Flatts - These Days
 	--	Coldwater Jane - Bring On The Love
 	-- Reba McEntire - The Night The Lights Went Out In Georgia
@@ -190,8 +189,8 @@ package STORM_core_package is
 	-- Nickelback - Never Gonna Be Alone
 	-- Montgomery Gentry - Oughta Be More Songs About
 	-- Jason Aldean - She's Country
-	-- Joe Nichols - The Shape Im In
 	-- Crystal Shawanda - You Can Let Go
+	-- Dixie Chicks - Wide Open Spaces
 
 	-- Joe Nichols - The Shape Im In
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
@@ -214,8 +213,8 @@ package STORM_core_package is
 	constant	A_SBC		: STD_LOGIC_VECTOR(3 downto 0) := "1011"; -- sub with carry
 	constant	A_RSB		: STD_LOGIC_VECTOR(3 downto 0) := "1100"; -- reverse sub
 	constant	A_RSC		: STD_LOGIC_VECTOR(3 downto 0) := "1101"; -- reverse sub with carry
-	constant	A_CMP		: STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- compare by addition
-	constant	A_CMN		: STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- compare by reverse sub
+	constant	A_CMP		: STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- compare by subtraction
+	constant	A_CMN		: STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- compare by addition
 	
 	constant PassA		: STD_LOGIC_VECTOR(3 downto 0) :=  L_TEQ; -- pass OP_A
 	constant PassB		: STD_LOGIC_VECTOR(3 downto 0) :=  L_MOV; -- pass OP_B
@@ -262,24 +261,22 @@ package STORM_core_package is
   -- -------------------------------------------------------------------------------------------
   component OPERAND_UNIT
 	 port	(
-				CLK				: in  STD_LOGIC;
-				RES				: in  STD_LOGIC;
 				CTRL_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				OP_ADR_IN		: in  STD_LOGIC_VECTOR(11 downto 0);
 				OP_A_IN			: in 	STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_IN			: in	STD_LOGIC_VECTOR(31 downto 0);
 				OP_C_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_VAL_IN	: in	STD_LOGIC_VECTOR(04 downto 0);
-				PC1_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				PC2_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
+				PC3_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				IMM_IN			: in  STD_LOGIC_VECTOR(31 downto 0);
 				OP_A_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
 				OP_B_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_VAL_OUT	: out STD_LOGIC_VECTOR(04 downto 0);
 				BP1_OUT			: out	STD_LOGIC_VECTOR(31 downto 0);
-				HOLD_BUS_OUT	: out STD_LOGIC_VECTOR(02 downto 0);
+				HOLD_BUS_OUT	: out STD_LOGIC_VECTOR(03 downto 0);
 				MSU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
-				ALU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
+				ALU_FW_IN		: in  STD_LOGIC_VECTOR(41 downto 0);
 				MEM_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0);
 				WB_FW_IN			: in  STD_LOGIC_VECTOR(40 downto 0)
 			);
@@ -345,14 +342,14 @@ package STORM_core_package is
 				RES					: in  STD_LOGIC;
 				CLK					: in  STD_LOGIC;
 				INSTR_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
+				INST_MREQ_OUT		: out STD_LOGIC;
 				OPCODE_DATA_OUT	: out STD_LOGIC_VECTOR(31 downto 0);
 				OPCODE_CTRL_IN		: in  STD_LOGIC_VECTOR(99 downto 0);
 				OPCODE_CTRL_OUT	: out STD_LOGIC_VECTOR(15 downto 0);
-				EXT_HALT_IN			: in  STD_LOGIC;
 				PC_HALT_OUT			: out STD_LOGIC;
 				SREG_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
 				EXECUTE_INT_IN		: in  STD_LOGIC;
-				HOLD_BUS_IN			: in  STD_LOGIC_VECTOR(02 downto 0);
+				HOLD_BUS_IN			: in  STD_LOGIC_VECTOR(03 downto 0);
 				OP_ADR_OUT			: out STD_LOGIC_VECTOR(11 downto 0);
 				IMM_OUT				: out STD_LOGIC_VECTOR(31 downto 0);
 				SHIFT_M_OUT			: out STD_LOGIC_VECTOR(01 downto 0);
@@ -435,8 +432,8 @@ package STORM_core_package is
 				MS_OVFL_IN		: in  STD_LOGIC;
 				MCR_DTA_OUT		: out STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DTA_IN		: in  STD_LOGIC_VECTOR(31 downto 0);
-				MREQ_OUT			: out STD_LOGIC;
-				ALU_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)
+				DATA_MREQ_OUT	: out STD_LOGIC;
+				ALU_FW_OUT		: out STD_LOGIC_VECTOR(41 downto 0)
 			);
   end component;
 

@@ -1,9 +1,9 @@
 -- #######################################################
 -- #     < STORM CORE PROCESSOR by Stephan Nolting >     #
 -- # *************************************************** #
--- #        Operand Fetch & Forwarding/Stall Unit        #
+-- #      Operand Fetch & Data Dependency Detector       #
 -- # *************************************************** #
--- # Version 2.4.2, 01.04.2011                           #
+-- # Version 2.4.3, 28.05.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -19,9 +19,6 @@ entity OPERAND_UNIT is
 -- ##			Global Control                                                                      ##
 -- ###############################################################################################
 
-				CLK				: in  STD_LOGIC; -- global clock
-				RES				: in  STD_LOGIC; -- global reset (active high)
-
 				CTRL_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- control lines
 				OP_ADR_IN		: in  STD_LOGIC_VECTOR(11 downto 0); -- operand addresses from decoder
 
@@ -33,23 +30,23 @@ entity OPERAND_UNIT is
 				OP_B_IN			: in	STD_LOGIC_VECTOR(31 downto 0); -- operant B reg_file output
 				OP_C_IN			: in	STD_LOGIC_VECTOR(31 downto 0); -- operant C reg_file output
 				SHIFT_VAL_IN	: in	STD_LOGIC_VECTOR(04 downto 0); -- immediate shift value input
-				PC1_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- current program counter
-				PC2_In			: in  STD_LOGIC_VECTOR(31 downto 0); -- delayed program counter
+				PC2_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- delayed program counter
+				PC3_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- 2x delayed program counter
 				IMM_IN			: in  STD_LOGIC_VECTOR(31 downto 0); -- immediate data input
 
 				OP_A_OUT			: out	STD_LOGIC_VECTOR(31 downto 0); -- new operand A
 				OP_B_OUT			: out	STD_LOGIC_VECTOR(31 downto 0); -- new operant B
 				SHIFT_VAL_OUT	: out STD_LOGIC_VECTOR(04 downto 0); -- new shift value
 				BP1_OUT			: out	STD_LOGIC_VECTOR(31 downto 0); -- new operant C (BP)
-				
-				HOLD_BUS_OUT	: out STD_LOGIC_VECTOR(02 downto 0); -- insert n bubbles
+
+				HOLD_BUS_OUT	: out STD_LOGIC_VECTOR(03 downto 0); -- cycle control
 				
 -- ###############################################################################################
 -- ##			Forwarding Pathes                                                                   ##
 -- ###############################################################################################
 
 				MSU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0); -- msu forwarding data & ctrl
-				ALU_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0); -- alu forwarding data & ctrl
+				ALU_FW_IN		: in  STD_LOGIC_VECTOR(41 downto 0); -- alu forwarding data & ctrl
 				MEM_FW_IN		: in  STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding data & ctrl
 				WB_FW_IN			: in  STD_LOGIC_VECTOR(40 downto 0)  -- write back forwaring data & ctrl
 
@@ -133,12 +130,12 @@ begin
 	-- ----------------------------------------------------------------------------------------------------------
 		LOCAL_DATA_DEPENDENCY_DETECTOR: process  (CTRL_IN, ALU_FW_IN, MEM_FW_IN, ALU_A_MATCH, ALU_B_MATCH,
 																ALU_C_MATCH, MEM_A_MATCH, MEM_B_MATCH, MEM_C_MATCH, WB_A_MATCH,
-																WB_B_MATCH, WB_C_MATCH)
+																WB_B_MATCH, WB_C_MATCH, WB_FW_IN, OP_A_IN, OP_B_IN, OP_C_IN)
 		begin
 		
 			-- Forward OP_X from EX/MEM/WB-stage if source and destination addresses are equal
 			-- and if the the instruction in the corresponding stage will perform a valid data write back.
-			-- Data from early stages has higher priority than data from later stages.
+			-- Data from early stages have higher priority than data from later stages.
 
 
 			--- LOCAL DATA DEPENDENCY FOR OPERANT A ---------------------
@@ -190,49 +187,50 @@ begin
 
 	-- Temporal Data Dependeny Detector ----------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------------------
-		TEMP_DDC: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN)
+		TEMPORAL_DDD: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN)
 		begin
 			-- Data conflicts that cannot be solved by forwarding <=> Temporal Data Dependencies
 			-- -> Pipeline Stalls & Bubbles needed
-			
-			-- MSU_MATCH only	     => 1 cycle(s) HALT_IF
-			-- ALU_MATCH and mem_r => 2 cycle(s) HALT_IF
-			-- MSU_MATCH and mem_r => 3 cycle(s) HALT_IF
 
-			if (MSU_MATCH = '1') and (MSU_FW_IN(FWD_MEM_ACC) = '1') then
-				HOLD_BUS_OUT(2 downto 1) <= "11";
+			-- MSU_MATCH (REG/FLAG) => 1 cycle(s) HALT_IF
+			-- MANUAL MEM_ACCESS    => 1 cycle(s) HALT_IF
+			-- ALU_MATCH and mem_r  => 2 cycle(s) HALT_IF
+			-- MSU_MATCH and mem_r  => 3 cycle(s) HALT_IF
+
+			if (MSU_MATCH = '1')    and (MSU_FW_IN(FWD_MEM_R_ACC) = '1') then
+				HOLD_BUS_OUT(3 downto 1) <= Std_Logic_Vector(to_unsigned(OF_MS_MEM_DD, 3));
 				HOLD_BUS_OUT(0) <= '1';
-			elsif (ALU_MATCH = '1') and (ALU_FW_IN(FWD_MEM_ACC) = '1') then
-				HOLD_BUS_OUT(2 downto 1) <= "10";
+			elsif (ALU_MATCH = '1') and (ALU_FW_IN(FWD_MEM_R_ACC) = '1') then
+				HOLD_BUS_OUT(3 downto 1) <= Std_Logic_Vector(to_unsigned(OF_EX_MEM_DD, 3));
 				HOLD_BUS_OUT(0) <= '1';
-			elsif (MSU_MATCH = '1') then
-				HOLD_BUS_OUT(2 downto 1) <= "01";
+			elsif (MSU_MATCH = '1') or  (ALU_FW_IN(FWD_MEM_ACC) = '1') or
+					(MSU_FW_IN(FWD_CY_NEED) = '1') then
+				HOLD_BUS_OUT(3 downto 1) <= Std_Logic_Vector(to_unsigned(OF_MS_REG_DD, 3));
 				HOLD_BUS_OUT(0) <= '1';
 			else
-				HOLD_BUS_OUT(2 downto 1) <= "00";
-				HOLD_BUS_OUT(0) <= '0';
+				HOLD_BUS_OUT <= (others => '0');
 			end if;
 
-		end process TEMP_DDC;
+		end process TEMPORAL_DDD;
 
 
 
 	-- Operand Multiplexers ---------------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------------
-		OPERAND_MUX: process(CTRL_IN, PC2_IN, OP_A, OP_B, OP_C, IMM_IN, PC1_IN, SHIFT_VAL_IN)
+		OPERAND_MUX: process(CTRL_IN, PC3_IN, OP_A, OP_B, OP_C, IMM_IN, PC2_IN, SHIFT_VAL_IN)
 		begin
 
-			---# OPERANT A #---
+			--- OPERANT A ---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_BRANCH) = '1') then -- BRANCH_INSTR signal
 				-- delayed program counter --
-				OP_A_OUT <= PC2_IN;
+				OP_A_OUT <= PC3_IN;
 			else
 				-- fowarding unit port A output --
 				OP_A_OUT <= OP_A;
 			end if;
 
-			---# OPERANT B #---
+			--- OPERANT B ---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_CONST) = '1') then -- CONST signal
 				-- immediate --
@@ -242,7 +240,7 @@ begin
 				OP_B_OUT <= OP_B;
 			end if;
 
-			---# SHIFT VALUE #---
+			--- SHIFT VALUE --
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_SHIFTR) = '1') then -- SHIFT_REG
 				-- fowarding unit port C output --
@@ -252,11 +250,11 @@ begin
 				SHIFT_VAL_OUT <= SHIFT_VAL_IN;
 			end if;
 
-			---# BYPASS DATA #---
+			--- BYPASS DATA ---
 			----------------------------------------------------------------
 			if (CTRL_IN(CTRL_LINK) = '1') then -- LINK signal
 				-- current program counter --
-				BP1_OUT <= PC1_IN;
+				BP1_OUT <= PC2_IN;
 			else
 				-- fowarding unit port C output --
 				BP1_OUT <= OP_C;

@@ -116,24 +116,23 @@ begin
 
 	-- External Memory Interface --------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		MEM_DATA_INTERFACE: process(CLK, RES, CTRL_IN, BP_BUFFER)
+		MEM_DATA_INTERFACE: process(CLK, RES, CTRL_IN, BP_BUFFER, ADR_BUFFER, INSTR_ADR_IN)
 			variable OUTPUT_DATA_BUFFER : STD_LOGIC_VECTOR(31 downto 0);
 		begin
-		-- Output write data on the falling edge
 
 			--- DATA/INSTR Selector ---
-			if ((CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC)) = '0') then
+			if ((CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC)) = '1') then
+				XMEM_ADR  <= ADR_BUFFER;           -- Data Address
+				XMEM_OPC  <= '0';                  -- Data Fetch
+				XMEM_RW   <= CTRL_IN(CTRL_MEM_RW); -- Read/Write
+				XMEM_BW   <= CTRL_IN(CTRL_MEM_M);  -- Data Quantity
+				XMEM_LOCK <= '0';
+			else
 				XMEM_ADR  <= INSTR_ADR_IN; -- Instruction Address
 				XMEM_OPC  <= '1';          -- Instruction Fetch
 				XMEM_RW   <= '0';          -- Read Access
 				XMEM_BW   <= '0';          -- Word Quantity
 				XMEM_LOCK <= '0';          -- not implemented yet
-			else
-				XMEM_ADR  <= ADR_BUFFER;           -- Data Address
-				XMEM_OPC  <= '0';                  -- Data Fetch
-				XMEM_RW   <= CTRL_IN(CTRL_MEM_RW); -- Read/Write
-				XMEM_BW   <= CTRL_IN(CTRL_MEM_M);  -- Data Quantity
-				XMEM_LOCK <= '0';                  -- not implemented yet
 			end if;
 
 			--- Output Data Alignment ---

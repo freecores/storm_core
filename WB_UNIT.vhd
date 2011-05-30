@@ -49,10 +49,9 @@ architecture Structure of WB_UNIT is
 
 	-- Pipeline Buffers --
 	signal	ALU_DATA		: STD_LOGIC_VECTOR(31 downto 0);
-	signal	ADR_BUFF		: STD_LOGIC_VECTOR(31 downto 0);
+	signal	ADR_BUFF		: STD_LOGIC_VECTOR(01 downto 0);
 
 	-- MEM RD Buffer --
-	signal	MEM_BUFFER	: STD_LOGIC_VECTOR(31 downto 0);
 	signal	MEM_DATA		: STD_LOGIC_VECTOR(31 downto 0);
 
 	-- Local Signals --
@@ -62,7 +61,7 @@ begin
 
 	-- Pipeline Registers -----------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
-		PIPE_REG: process(CLK, RES)
+		PIPE_REG: process(CLK, RES, XMEM_RD_DATA)
 		begin
 			--- ALU Data ---
 			if rising_edge(CLK) then
@@ -71,17 +70,21 @@ begin
 					ADR_BUFF <= (others => '0');
 				else
 					ALU_DATA <= ALU_DATA_IN;
-					ADR_BUFF <= ADR_BUFF_IN;
+					ADR_BUFF <= ADR_BUFF_IN(1 downto 0); -- we only need the 2 LSBs
 				end if;
 			end if;
 
 			--- MEM Data ---
-			if falling_edge(CLK) then
-				if (RES = '1') then
-					MEM_DATA <= NOP_CMD; -- "NOP" Instruction
-				else
-					MEM_DATA <= XMEM_RD_DATA;
+			if (USE_MEM_RD_FF = TRUE) then
+				if falling_edge(CLK) then
+					if (RES = '1') then
+						MEM_DATA <= NOP_CMD; -- "NOP" Instruction
+					else
+						MEM_DATA <= XMEM_RD_DATA;
+					end if;
 				end if;
+			else
+				MEM_DATA <= XMEM_RD_DATA;
 			end if;
 		end process PIPE_REG;
 
@@ -93,36 +96,36 @@ begin
 	-- Write Back Data Selector -----------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
 		WB_DATA_MUX: process(CTRL_IN, MEM_DATA, ALU_DATA, ADR_BUFF, MEM_DATA)
-			variable BYTE_OUT_TMP : STD_LOGIC_VECTOR(07 downto 0);
-			variable WORD_OUT_TMP : STD_LOGIC_VECTOR(31 downto 0);
+			variable TEMP        : STD_LOGIC_VECTOR(02 downto 0);
+			variable RD_DATA_TMP : STD_LOGIC_VECTOR(31 downto 0);
 		begin
 
 			--- Input Data Alignment ---
-			case (ADR_BUFF(1 downto 0)) is
-				when "00" => -- word boundary, no offset
-					WORD_OUT_TMP := MEM_DATA(31 downto 00);
-					BYTE_OUT_TMP := MEM_DATA(07 downto 00);
-				when "01" => -- one byte offset
-					WORD_OUT_TMP := MEM_DATA(07 downto 00) & MEM_DATA(31 downto 08);
-					BYTE_OUT_TMP := MEM_DATA(15 downto 08);
-				when "10" => -- two bytes offset
-					WORD_OUT_TMP := MEM_DATA(15 downto 00) & MEM_DATA(31 downto 16);
-					BYTE_OUT_TMP := MEM_DATA(23 downto 16);
-				when "11" => -- three bytes offset
-					WORD_OUT_TMP := MEM_DATA(23 downto 00) & MEM_DATA(31 downto 24);
-					BYTE_OUT_TMP := MEM_DATA(31 downto 24);
+			TEMP := CTRL_IN(CTRL_MEM_M) & ADR_BUFF;
+			case (TEMP) is
+				when "000" => -- Word Transfer, word boundary, no offset
+					RD_DATA_TMP := MEM_DATA(31 downto 00);
+				when "001" => -- Word Transfer, one byte offset
+					RD_DATA_TMP := MEM_DATA(07 downto 00) & MEM_DATA(31 downto 08);
+				when "010" => -- Word Transfer, two bytes offset
+					RD_DATA_TMP := MEM_DATA(15 downto 00) & MEM_DATA(31 downto 16);
+				when "011" => -- Word Transfer, three bytes offset
+					RD_DATA_TMP := MEM_DATA(23 downto 00) & MEM_DATA(31 downto 24);
+				when "100" => -- Byte Transfer, word boundary, no offset
+					RD_DATA_TMP := x"000000" & MEM_DATA(07 downto 00);
+				when "101" => -- Byte Transfer,one byte offset
+					RD_DATA_TMP := x"000000" & MEM_DATA(15 downto 08);
+				when "110" => -- Byte Transfer,two bytes offset
+					RD_DATA_TMP := x"000000" & MEM_DATA(23 downto 16);
+				when "111" => -- Byte Transfer,three bytes offset
+					RD_DATA_TMP := x"000000" & MEM_DATA(31 downto 24);
 				when others => -- undefined
-					WORD_OUT_TMP := (others => '-');
-					BYTE_OUT_TMP := (others => '-');
+					RD_DATA_TMP := (others => '-');
 			end case;
 
 			--- Write Back Selector ---
-			if (CTRL_IN(CTRL_MEM_ACC) = '1') and (CTRL_IN(CTRL_MEM_RW) = '0') then -- Read Access
-				if (CTRL_IN(CTRL_MEM_M) = '0') then -- Data Quantity
-					REG_WB_DATA <= WORD_OUT_TMP; -- Word Transfer
-				else
-					REG_WB_DATA <= x"000000" & BYTE_OUT_TMP; -- Byte Transfer
-				end if;
+			if (CTRL_IN(CTRL_MEM_ACC) = '1') and (CTRL_IN(CTRL_MEM_RW) = '0') then
+				REG_WB_DATA <= RD_DATA_TMP; -- Memory read data
 			else
 				REG_WB_DATA <= ALU_DATA; -- ALU Operation
 			end if;

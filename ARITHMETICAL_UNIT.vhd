@@ -17,27 +17,27 @@ entity ARITHMETICAL_UNIT is
 	port	(
 				-- Function Operands --
 				--------------------------------------------------
-				OP_A			: in  STD_LOGIC_VECTOR(31 downto 0);
-				OP_B			: in  STD_LOGIC_VECTOR(31 downto 0);
-				RESULT		: out STD_LOGIC_VECTOR(31 downto 0);
+				OP_A			: in  STD_LOGIC_VECTOR(31 downto 00);
+				OP_B			: in  STD_LOGIC_VECTOR(31 downto 00);
+				RESULT		: out STD_LOGIC_VECTOR(31 downto 00);
 				
 				-- Flag Operands --
 				--------------------------------------------------
 				BS_OVF_IN	: in  STD_LOGIC;
 				A_CARRY_IN	: in  STD_LOGIC;
-				FLAG_OUT	 	: out STD_LOGIC_VECTOR(03 downto 0);
+				FLAG_OUT	 	: out STD_LOGIC_VECTOR(03 downto 00);
 				
 				-- Operation Control --
 				--------------------------------------------------
-				CTRL			: in  STD_LOGIC_VECTOR(02 downto 0)
+				CTRL			: in  STD_LOGIC_VECTOR(02 downto 00)
 			);
 end ARITHMETICAL_UNIT;
 
 architecture Behavioral of ARITHMETICAL_UNIT is
 
 	-- local signals --
-	signal	ADD_MODE		: STD_LOGIC_VECTOR(02 downto 0); -- adder mode control
-	signal	ADDER_RES	: STD_LOGIC_VECTOR(32 downto 0); -- adder/subtractor result
+	signal	ADD_MODE		: STD_LOGIC_VECTOR(02 downto 00); -- adder mode control
+	signal	ADDER_RES	: STD_LOGIC_VECTOR(32 downto 00); -- adder/subtractor result
 	signal	CARRY_OUT	: STD_LOGIC;							-- internal carry output
 	
 
@@ -79,7 +79,7 @@ begin
 					ADD_MODE  <= "110";
 					RESULT    <= ADDER_RES(31 downto 0);
 
-				-- CMP: result = OP_B, compares by F = OP_A # OP_B --
+				-- CMP: result = OP_B, compares by F = OP_A - OP_B --
 				when A_CMP =>
 					ADD_MODE  <= "001";
 					RESULT    <= OP_B;
@@ -102,9 +102,8 @@ begin
 	-- Adder/Subtractor ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		ADDER_SUBTRACTOR: process(ADD_MODE, OP_A, OP_B, A_CARRY_IN, ADDER_RES)
-			variable ADDER_A, ADDER_B : std_logic_vector(32 downto 0);
-			variable CARRY_IN         : std_logic_vector(00 downto 0);
-
+			variable ADDER_A, ADDER_B : std_logic_vector(32 downto 00);
+			variable CARRY_IN         : std_logic_vector(00 downto 00);
 		begin
 			ADDER_A(32) := '0';
 			ADDER_B(32) := '0';

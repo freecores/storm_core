@@ -50,13 +50,13 @@ entity ALU is
 -- ##			Verious Signals                                                                     ##
 -- ###############################################################################################
 
-				MREQ_OUT			: out STD_LOGIC;							-- memory request signal
+				DATA_MREQ_OUT	: out STD_LOGIC;							-- memory data request signal
 
 -- ###############################################################################################
 -- ##			Forwarding Path                                                                     ##
 -- ###############################################################################################
 
-				ALU_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0)  -- forwarding path
+				ALU_FW_OUT		: out STD_LOGIC_VECTOR(41 downto 0)  -- forwarding path
 
 			);
 end ALU;
@@ -103,9 +103,10 @@ begin
 		ALU_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= ALU_OUT(31 downto 0);
 		ALU_FW_OUT(FWD_RD_MSB   downto   FWD_RD_LSB) <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
 		
-		ALU_FW_OUT(FWD_WB)        <= (CTRL(CTRL_EN) and CTRL(CTRL_WB_EN));--(CTRL(CTRL_EN) and (not CTRL(CTRL_BRANCH)) and CTRL(CTRL_WB_EN)); -- write back enabled
-		ALU_FW_OUT(FWD_MEM_ACC)   <= CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW)); -- memory read access
-		ALU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW)); -- mreg read access
+		ALU_FW_OUT(FWD_WB)        <= CTRL(CTRL_EN) and CTRL(CTRL_WB_EN); --(CTRL(CTRL_EN) and (not CTRL(CTRL_BRANCH)) and CTRL(CTRL_WB_EN)); -- write back enabled
+		ALU_FW_OUT(FWD_MEM_ACC)   <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC); -- memory access
+		ALU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW)); -- mreg read access
+		ALU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW)); -- memory read access
 
 
 
@@ -137,7 +138,7 @@ begin
 							);
 
 
-		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3))
+		OPERATION_RESULT_MUX: process(CTRL(CTRL_ALU_FS_3), LOGIC_RES, LOGIC_FLAG_OUT, ARITH_RES, ARITH_FLAG_OUT)
 		begin
 			if (CTRL(CTRL_ALU_FS_3) = LOGICAL_OP) then -- LOGICAL OPERATION
 				ALU_OUT  <= LOGIC_RES;
@@ -173,7 +174,7 @@ begin
 
 	-- Bypass System ---------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		BP_MANAGER: process (BP1, PC_IN, CTRL)
+		BP_MANAGER: process (BP1, PC_IN, INT_CALL_IN)
 		begin
 			if (INT_CALL_IN = '1') then
 				-- Interrupt Call --
@@ -186,16 +187,9 @@ begin
 
 
 
---	-- Memory Request Signal -------------------------------------------------------------------------------
---	-- --------------------------------------------------------------------------------------------------------
---		MEM_REQ: process(CTRL(CTRL_EN), CTRL(CTRL_MEM_ACC))
---		begin
---			MREQ_OUT <= '0';
---			if (CTRL(CTRL_EN) = '1') and (CTRL(CTRL_MEM_ACC) = '1') then
---				MREQ_OUT <= '1';
---			end if;		
---		end process MEM_REQ;
-	MREQ_OUT <= '1';
+	-- Memory Data Request Signal --------------------------------------------------------------------------
+	-- --------------------------------------------------------------------------------------------------------
+		DATA_MREQ_OUT <= '1' when ((CTRL(CTRL_EN) = '1') and (CTRL(CTRL_MEM_ACC) = '1')) else '0';
 
 
 

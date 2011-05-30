@@ -155,7 +155,7 @@ begin
 		MSU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW));
 
 		-- Memory Read Access --
-		MSU_FW_OUT(FWD_MEM_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW));
+		MSU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW));
 
 
 

@@ -23,10 +23,11 @@ entity FLOW_CTRL is
 				CLK					: in  STD_LOGIC; -- global clock input
 
 -- ###############################################################################################
--- ##			Instruction Word Input																					##
+-- ##			Instruction Interface																					##
 -- ###############################################################################################
 
 				INSTR_IN				: in  STD_LOGIC_VECTOR(31 downto 0); -- instr memory input
+				INST_MREQ_OUT		: out STD_LOGIC; -- automatic instruction fetch memory request
 
 -- ###############################################################################################
 -- ##			OPCODE Decoder Connection																				##
@@ -40,13 +41,12 @@ entity FLOW_CTRL is
 -- ##			Operands																										##
 -- ###############################################################################################
 
-				EXT_HALT_IN			: in  STD_LOGIC;
 				PC_HALT_OUT			: out STD_LOGIC;
 
 				SREG_IN				: in  STD_LOGIC_VECTOR(31 downto 0);
 				EXECUTE_INT_IN		: in  STD_LOGIC;
 
-				HOLD_BUS_IN			: in  STD_LOGIC_VECTOR(02 downto 0);
+				HOLD_BUS_IN			: in  STD_LOGIC_VECTOR(03 downto 0);
 
 -- ###############################################################################################
 -- ##			Pipeline Stage Control																					##
@@ -72,88 +72,83 @@ architecture FLOW_CTRL_STRUCTURE of FLOW_CTRL is
 -- ##			Local Signals																								##
 -- ###############################################################################################
 
-	-- Instruction Register --
-	signal	INSTR_REG		: STD_LOGIC_VECTOR(31 downto 0);
-
 	-- Branch System --
-	signal	BRANCH_TAKEN	: STD_LOGIC;
-	signal	PC_IR_HALT		: STD_LOGIC;
-	signal	HALT_GLOBAL_IF	: STD_LOGIC;
-	
-	-- Bubble Generator --
-	signal	INSERT_BUBBLE	: STD_LOGIC;
+	signal	BRANCH_TAKEN   : STD_LOGIC;
+	signal 	DISABLE_CYCLE  : STD_LOGIC;
+
+	-- Halt System --
+	signal	HOLD_DIS_OF    : STD_LOGIC;
+	signal	MULTI_CYCLE_OP : STD_LOGIC;
 	
 	-- Instruction Validation System --
-	signal	VALID_INSTR		: STD_LOGIC;
+	signal	VALID_INSTR    : STD_LOGIC;
 
 	-- Control Busses --
-	signal	DEC_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MS_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MS_CTRL_INT		: STD_LOGIC_VECTOR(31 downto 0);	
-	signal	EX1_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	CTRL_EX1_BUS	: STD_LOGIC_VECTOR(31 downto 0);
-	signal	MEM_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
-	signal	WB_CTRL			: STD_LOGIC_VECTOR(31 downto 0);
-	
-	-- Operand Control --
-	signal	DUAL_OP			: STD_LOGIC_VECTOR(04 downto 0);
-	signal	NEXT_DUAL_OP	: STD_LOGIC_VECTOR(04 downto 0);
-
-	-- CTRL Buffer For ALU-Stage --
-	signal	MULTI_OP_HALT	: STD_LOGIC;
-	
-	-- Manual Data Memory Access --
-	signal	MEM_DAT_ACC		: STD_LOGIC;
-
-	-- Prefetch Output --
-	signal	PRF_OUT			: STD_LOGIC_VECTOR(31 downto 0);
+	signal	DEC_CTRL       : STD_LOGIC_VECTOR(31 downto 0);
+	signal	MS_CTRL        : STD_LOGIC_VECTOR(31 downto 0);
+	signal	EX1_CTRL       : STD_LOGIC_VECTOR(31 downto 0);
+	signal	CTRL_EX1_BUS   : STD_LOGIC_VECTOR(31 downto 0);
+	signal	MEM_CTRL       : STD_LOGIC_VECTOR(31 downto 0);
+	signal	WB_CTRL        : STD_LOGIC_VECTOR(31 downto 0);
 
 begin
 
 	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 1/5: OPERAND FETCH & INSTRUCITON DECODE / DATA WRITE BACK                    ##
+	-- ##			PIPELINE STAGE 0/1: OPERAND FETCH / INSTRUCTION DECODE                                      ##
 	-- #######################################################################################################
 
 	-- Instruction Fetch Unit --------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		OP_FETCH_UNIT: process(CLK, RES, INSTR_IN, HOLD_BUS_IN)
-			variable IR_0, IR_1, IR_2, IR_3    : STD_LOGIC_VECTOR(31 downto 00);
-			variable CYCLE_CNT, RD_CNT, WR_CNT : STD_LOGIC_VECTOR(01 downto 00);
-			variable RD_INC, WR_INC, WR_IR_EN  : STD_LOGIC;
-			
+		OP_FETCH_UNIT: process(CLK, RES, INSTR_IN, HOLD_BUS_IN, MULTI_CYCLE_OP)
+			variable IR_0, IR_1, IR_2, IR_3   : STD_LOGIC_VECTOR(31 downto 00);
+			variable CYCLE_CNT                : STD_LOGIC_VECTOR(02 downto 00);
+			variable	RD_CNT, WR_CNT           : STD_LOGIC_VECTOR(01 downto 00);
+			variable RD_INC, WR_INC, WR_IR_EN : STD_LOGIC;
 		begin
 
-			-- Cycle Action Counter --
+			--- Cycle Action Counter ---
 			if rising_edge(CLK) then
 				if (RES = '1') then -- Reset
 					CYCLE_CNT := (others => '0');
-				elsif (HOLD_BUS_IN(0) = '1') then -- Load counter
-					CYCLE_CNT := HOLD_BUS_IN(2 downto 1);
-				elsif (CYCLE_CNT /= "00") then -- Decrement until zero
+				elsif (HOLD_BUS_IN(0) = '1') then -- Load counter with operand unit value
+					CYCLE_CNT := HOLD_BUS_IN(3 downto 1);
+				elsif (MULTI_CYCLE_OP = '1') then
+					CYCLE_CNT :=  "001";
+				elsif (to_integer(unsigned(CYCLE_CNT)) /= 0) then -- Decrement until zero
 					CYCLE_CNT := Std_Logic_Vector(unsigned(CYCLE_CNT) - 1);
 				end if;
 			end if;
 
-
-			-- Global IR Write Enable
+			--- Global IR Write Enable ---
 			if rising_edge(CLK) then
 				if (RES = '1') then
 					WR_IR_EN := '0';
-				elsif (CYCLE_CNT = "00") then
+				elsif (to_integer(unsigned(CYCLE_CNT)) = 0) then
 					WR_IR_EN := '1';
 				else
 					WR_IR_EN := '0';
 				end if;
 			end if;
 
-
-			-- RD/WR CNT enable & external CTRL --
-			if (to_integer(unsigned(CYCLE_CNT)) > 1) or (HOLD_BUS_IN(0) = '1') then
+			--- RD/WR CNT Enable & Stage Enable & Memory Request ---
+			if (to_integer(unsigned(CYCLE_CNT)) > 1) or
+				(HOLD_BUS_IN(0) = '1') or (MULTI_CYCLE_OP = '1') then
 				RD_INC := '0';
-				HALT_GLOBAL_IF <= '1';
+				-- Multi-Cycle Operations: Freeze instruction fetch
+				-- but keep pipeline enabled
+				HOLD_DIS_OF <= not MULTI_CYCLE_OP;--'1';
+				PC_HALT_OUT <= '1';
 			else
 				RD_INC := '1';
-				HALT_GLOBAL_IF <= '0';
+				HOLD_DIS_OF <= '0';
+				PC_HALT_OUT <= '0';
+			end if;
+			if rising_edge(CLK) then -- memory request signal
+				if (RES = '1') then
+					INST_MREQ_OUT <= '0';
+				else
+					INST_MREQ_OUT <= RD_INC;
+				end if;
 			end if;
 			if (to_integer(unsigned(CYCLE_CNT)) = 0) then
 				WR_INC := '1';
@@ -161,8 +156,7 @@ begin
 				WR_INC := '0';
 			end if;
 
-
-			-- Read/Write Address Counter --
+			--- Read/Write Address Counter ---
 			if rising_edge(CLK) then
 				if (RES = '1') then
 					RD_CNT := "11"; -- we need 1 entry difference
@@ -177,8 +171,7 @@ begin
 				end if;
 			end if;
 
-
-			-- Synchronous Instruction Buffer Write --
+			--- Synchronous Instruction Buffer Write ---
 			if rising_edge(CLK) then
 				if (RES = '1') then
 					IR_0 := NOP_CMD;
@@ -196,61 +189,73 @@ begin
 				end if;
 			end if;
 
-
-			-- Asynchronous Instruction Buffer Read --
+			--- Asynchronous Instruction Buffer Read ---
 			case (RD_CNT) is
-				when "00"   => INSTR_REG <= IR_0;
-				when "01"   => INSTR_REG <= IR_1;
-				when "10"   => INSTR_REG <= IR_2;
-				when "11"   => INSTR_REG <= IR_3;
-				when others => INSTR_REG <= (others => '-');
+				when "00"   => OPCODE_DATA_OUT <= IR_0;
+				when "01"   => OPCODE_DATA_OUT <= IR_1;
+				when "10"   => OPCODE_DATA_OUT <= IR_2;
+				when "11"   => OPCODE_DATA_OUT <= IR_3;
+				when others => OPCODE_DATA_OUT <= (others => '-');
 			end case;
 
 		end process OP_FETCH_UNIT;
 
 
-	-- Opcode Decoder Connection -----------------------------------------------------------------
-	-- ----------------------------------------------------------------------------------------------
-		-- primary control --
-		OPCODE_DATA_OUT <= INSTR_REG;
-		
-		-- secondary control --
-		OPCODE_CTRL_OUT(04 downto 00) <= DUAL_OP;
-		OPCODE_CTRL_OUT(10 downto 05) <= (others => '0');
 
+	-- #######################################################################################################
+	-- ##			PIPELINE STAGE 2: OPERAND FETCH                                                             ##
+	-- #######################################################################################################
 
 	-- Stage "Operand Fetch" Control Unit --------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		OF_CTRL_UNIT: process(OPCODE_CTRL_IN, MULTI_OP_HALT, EXT_HALT_IN, INSERT_BUBBLE, MEM_DAT_ACC, HALT_GLOBAL_IF)
-			variable FORCE_DISABLE : STD_LOGIC;
+		OF_CTRL_UNIT: process(CLK, RES, OPCODE_CTRL_IN, DISABLE_CYCLE, HOLD_DIS_OF)
+			variable FORCE_DISABLE  : STD_LOGIC;
+			variable OP_BUFFER      : STD_LOGIC_VECTOR(31 downto 0);
+			variable M_CYC_CNT      : STD_LOGIC_VECTOR(04 downto 0);
 		begin
-		
+
 			--- Opcode Decoder Connection ---
-			DEC_CTRL			<= OPCODE_CTRL_IN(31 downto 00);
-			OP_ADR_OUT		<= OPCODE_CTRL_IN(43 downto 32);
-			IMM_OUT			<= OPCODE_CTRL_IN(78 downto 47);
-			SHIFT_M_OUT		<= OPCODE_CTRL_IN(80 downto 79);
-			SHIFT_C_OUT		<= OPCODE_CTRL_IN(85 downto 81);
-			NEXT_DUAL_OP	<= OPCODE_CTRL_IN(90 downto 86);
+			if rising_edge(CLK) then
+				if (RES = '1') then
+					OP_BUFFER    := (others => '0');
+					OP_ADR_OUT   <= (others => '0');
+					IMM_OUT      <= (others => '0');
+					SHIFT_M_OUT  <= (others => '0');
+					SHIFT_C_OUT  <= (others => '0');
+					M_CYC_CNT    := (others => '0');
+				else
+					M_CYC_CNT    := OPCODE_CTRL_IN(90 downto 86);
+					OP_BUFFER    := OPCODE_CTRL_IN(31 downto 00);
+					-- disable stage when branching --
+					OP_BUFFER(CTRL_EN) := not (DISABLE_CYCLE or HOLD_DIS_OF);
+					OP_ADR_OUT   <= OPCODE_CTRL_IN(43 downto 32);
+					IMM_OUT      <= OPCODE_CTRL_IN(78 downto 47);
+					SHIFT_M_OUT  <= OPCODE_CTRL_IN(80 downto 79);
+					SHIFT_C_OUT  <= OPCODE_CTRL_IN(85 downto 81);
+				end if;
+			end if;
 
 			--- Default Disable ---
 			FORCE_DISABLE := '0';
-			if (OPCODE_CTRL_IN(CTRL_COND_3 downto CTRL_COND_0) = COND_NV) then
+			if (OP_BUFFER(CTRL_COND_3 downto CTRL_COND_0) = COND_NV) then
 				FORCE_DISABLE := '1';
 			end if;
 
-			--- Multi-Cycle Operation in Progress ---
-			MULTI_OP_HALT <= '1';
-			if (OPCODE_CTRL_IN(90 downto 86) = "00000") then
-				MULTI_OP_HALT	<= '0' ;
+			--- Multi-Cycle Operation Counter ---
+			-- Freeze instruction fetch but keep pipeline enabled
+			MULTI_CYCLE_OP <=  '0';
+			if (to_integer(unsigned(OPCODE_CTRL_IN(90 downto 86))) /= 0) then
+				MULTI_CYCLE_OP <= '1';
 			end if;
 
-			-- Halt Instruction Fetch --
-			PC_IR_HALT  <= HALT_GLOBAL_IF or MULTI_OP_HALT or EXT_HALT_IN or MEM_DAT_ACC;
-			PC_HALT_OUT <= PC_IR_HALT;
+			--- Multi-Cycle Counter Writeback ---
+			OPCODE_CTRL_OUT(04 downto 00) <= M_CYC_CNT;
 
-			-- Halt Instruction Processing --
-			DEC_CTRL(CTRL_EN) <= not (EXT_HALT_IN or FORCE_DISABLE or HALT_GLOBAL_IF or INSERT_BUBBLE or MEM_DAT_ACC);
+			--- Stage CTRL Bus ---
+			DEC_CTRL <= OP_BUFFER;
+			-- Disable Instruction Processing when inserting a dummy cycle and not
+			-- performing a multi-cycle operation
+			DEC_CTRL(CTRL_EN) <= OP_BUFFER(CTRL_EN) and (not FORCE_DISABLE);
 
 		end process OF_CTRL_UNIT;
 
@@ -260,119 +265,42 @@ begin
 		OF_CTRL_OUT <= DEC_CTRL;
 
 
+
 	-- #######################################################################################################
-	-- ##			PIPELINE STAGE 2: MULTIPLICATION & SHIFT                                                    ##
+	-- ##			PIPELINE STAGE 3: MULTIPLICATION & SHIFT                                                    ##
 	-- #######################################################################################################
 
 	-- Pipeline Registers ------------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		STAGE_BUFFER_2: process(CLK, RES)
+		STAGE_BUFFER_2: process(CLK, RES, DEC_CTRL, DISABLE_CYCLE)
 		begin
 			if rising_edge (CLK) then
 				if (RES = '1') then
-					MS_CTRL_INT <= (others => '0');
+					MS_CTRL <= (others => '0');
 					-- set 'never condition' for start up --
-					MS_CTRL_INT(CTRL_COND_3 downto CTRL_COND_0) <= COND_NV;
+					MS_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= COND_NV;
 				else
-					MS_CTRL_INT <= DEC_CTRL;
+					MS_CTRL <= DEC_CTRL;
+					-- disable stage when branching --
+					MS_CTRL(CTRL_EN) <= DEC_CTRL(CTRL_EN) and (not DISABLE_CYCLE);
 				end if;
 			end if;
 		end process STAGE_BUFFER_2;
 
 
-	-- Branch Cycle Arbiter ----------------------------------------------------------------------
-	-- ----------------------------------------------------------------------------------------------
-		BR_CYCLE_ARBITER: process(CLK, RES, BRANCH_TAKEN)
-			variable CA_CNT : STD_LOGIC_VECTOR(1 downto 0);
-		begin
-
-			--- Cycle Counter ---
-			if rising_edge(CLK) then
-				if (RES = '1') then -- reset
-					CA_CNT := (others => '0');
-				elsif (BRANCH_TAKEN = '1') then -- restart
-					CA_CNT := "10";
-				elsif (CA_CNT /= "00") then -- decrement until zero
-					CA_CNT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
-				end if;
-			end if;
-
-			--- INSERT NOP ---
-			if (CA_CNT /= "00") or (BRANCH_TAKEN = '1') then
-				INSERT_BUBBLE <= '1';
-			else
-				INSERT_BUBBLE <= '0';
-			end if;
-
-		end process BR_CYCLE_ARBITER;
-
-
---		CYCLE_ARBITER: process(CLK, RES, HOLD_BUS_IN, BRANCH_TAKEN)
---			variable CA_CNT, CA_CNT_NXT : STD_LOGIC_VECTOR(2 downto 0);
---			variable INV_FF, INV_FF_NXT : STD_LOGIC;
---		begin
---
---			--- Cycle Counter Input ---
---			if (CA_CNT = "000") then
---				if (BRANCH_TAKEN = '1') then
---					CA_CNT_NXT := "011";
---					INV_FF_NXT := '1';
---				elsif (HOLD_BUS_IN(0) = '1') then
---					CA_CNT_NXT := '0' & HOLD_BUS_IN(2 downto 1);
---					INV_FF_NXT := '0';
---				else
---					-- normal operation --
---					CA_CNT_NXT := "000";
---					INV_FF_NXT := '0';
---				end if;
---			else
---				-- counting down --
---				CA_CNT_NXT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
---				INV_FF_NXT := INV_FF;
---			end if;
---
---			--- Cycle Counter ---
---			if rising_edge(CLK) then
---				if (RES = '1') then
---					CA_CNT := (others => '0');
---					INV_FF := '0';
---				else
---					CA_CNT := CA_CNT_NXT;
---					INV_FF := INV_FF_NXT;
---				end if;
---			end if;
---
---			--- HALT Output ---
---			HALT_GLOBAL_IF <= '1';
---			if (CA_CNT = "000") and (HOLD_BUS_IN(0) = '0') then
---				HALT_GLOBAL_IF <= '0';
---			end if;
---
---			--- NOP Output ---
---			INSERT_BUBBLE <= INV_FF or BRANCH_TAKEN;
---
---		end process CYCLE_ARBITER;
-
-
-
 	-- Pipeline Stage "MULTIPLY/SHIFT" CTRL Bus --------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		MS_CTRL_ALLOCATION: process(MS_CTRL, INSERT_BUBBLE, MS_CTRL_INT)
-		begin
-			MS_CTRL				<= MS_CTRL_INT;
-			MS_CTRL(CTRL_EN)	<= MS_CTRL_INT(CTRL_EN)	and (not INSERT_BUBBLE);
-		end process MS_CTRL_ALLOCATION;
-
 		MS_CTRL_OUT <= MS_CTRL;
 
 
+
 	-- #####################################################################################################
-	-- ##			PIPELINE STAGE 3/0: ALU OPERATION & MCR ACCESS / INSTRUCTION FETCH                        ##
+	-- ##			PIPELINE STAGE 4: ALU OPERATION & MCR ACCESS                                              ##
 	-- #####################################################################################################
 
 	-- Pipeline Registers ------------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		STAGE_BUFFER_3: process(CLK)
+		STAGE_BUFFER_3: process(CLK, RES, MS_CTRL, DISABLE_CYCLE)
 		begin
 			if rising_edge(CLK) then
 				if (RES = '1') then
@@ -381,9 +309,37 @@ begin
 					EX1_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= COND_NV;
 				else
 					EX1_CTRL <= MS_CTRL;
+					-- disable stage when branching --
+					EX1_CTRL(CTRL_EN) <= MS_CTRL(CTRL_EN) and (not DISABLE_CYCLE);
 				end if;
 			end if;
 		end process STAGE_BUFFER_3;
+
+
+	-- Branch Cycle Arbiter ----------------------------------------------------------------------
+	-- ----------------------------------------------------------------------------------------------
+		BR_CYCLE_ARBITER: process(CLK, RES, BRANCH_TAKEN)
+			variable CA_CNT : STD_LOGIC_VECTOR(2 downto 0);
+		begin
+
+			--- Cycle Counter ---
+			if rising_edge(CLK) then
+				if (RES = '1') then -- reset
+					CA_CNT := (others => '0');
+				elsif (BRANCH_TAKEN = '1') then -- restart
+					CA_CNT := Std_Logic_Vector(to_unsigned(DC_TAKEN_BRANCH, 3));
+				elsif (CA_CNT /= "000") then -- decrement until zero
+					CA_CNT := Std_Logic_Vector(unsigned(CA_CNT) - 1);
+				end if;
+			end if;
+
+			--- Disable OF, MS and EX stage in next cycle ---
+			DISABLE_CYCLE <= '0';
+			if (to_integer(unsigned(CA_CNT)) /= 0) or (BRANCH_TAKEN = '1') then
+				DISABLE_CYCLE <= '1';
+			end if;
+
+		end process BR_CYCLE_ARBITER;
 
 
 	-- Condition Check System --------------------------------------------------------------------
@@ -441,7 +397,7 @@ begin
 				when COND_NV => -- NV = NEVER
 					EXECUTE := '0';
 
-				when others => -- UNDEFINED
+				when others  => -- UNDEFINED
 					EXECUTE := '0';
 
 			end case;
@@ -452,7 +408,7 @@ begin
 		end process COND_CHECK_SYS;
 
 
-	-- Test For Manual Branch --------------------------------------------------------------------
+	-- Detector for automatic/manual branches ----------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
 		BRANCH_DETECTOR: process(EX1_CTRL, VALID_INSTR)
 			variable TEMP : STD_LOGIC;
@@ -461,7 +417,8 @@ begin
 			if (EX1_CTRL(CTRL_RD_3 downto CTRL_RD_0) = C_PC_ADR) and (EX1_CTRL(CTRL_WB_EN) = '1') then
 				TEMP := '1'; -- set if destination register is the PC
 			end if;
-			BRANCH_TAKEN <= (VALID_INSTR and (EX1_CTRL(CTRL_BRANCH) or TEMP));
+			-- Branch Taken Signal --
+			BRANCH_TAKEN <= VALID_INSTR and (EX1_CTRL(CTRL_BRANCH) or TEMP);
 		end process BRANCH_DETECTOR;
 
 
@@ -472,12 +429,12 @@ begin
 
 			--- CTRL_BUS for THIS stage ---
 			EX1_CTRL_OUT              <= EX1_CTRL;
-			EX1_CTRL_OUT(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken sign
+			EX1_CTRL_OUT(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken signal
 			EX1_CTRL_OUT(CTRL_EN)     <= VALID_INSTR;  -- insert current op validation
 
 			--- CTRL_BUS for NEXT stage ---
 			CTRL_EX1_BUS              <= EX1_CTRL;
-			CTRL_EX1_BUS(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken sign
+			CTRL_EX1_BUS(CTRL_BRANCH) <= BRANCH_TAKEN; -- insert branch taken signal
 			CTRL_EX1_BUS(CTRL_EN)     <= VALID_INSTR;  -- insert current op validation
 
 			--- Branch & Link Operation for Interrupt Call ---
@@ -501,8 +458,9 @@ begin
 		--EX1_CTRL_OUT <= CTRL_EX1_BUS;
 
 
+
 	-- #####################################################################################################
-	-- ##			PIPELINE STAGE 4: DATA MEMORY ACCESS                                                      ##
+	-- ##			PIPELINE STAGE 5: DATA MEMORY ACCESS                                                      ##
 	-- #####################################################################################################
 
 	-- Pipeline Registers ------------------------------------------------------------------------
@@ -520,27 +478,14 @@ begin
 		end process STAGE_BUFFER_4;
 
 
-	-- Manual Data Memory Access -----------------------------------------------------------------
-	-- ----------------------------------------------------------------------------------------------
-		MANUAL_MEM_ACCESS: process(MEM_CTRL, WB_CTRL)
-			variable TEMP_A, TEMP_B : STD_LOGIC;
-		begin
-			-- Hold instruction fetch for at leat 1 cycle when performing data memory access
-			TEMP_A := MEM_CTRL(CTRL_EN) and MEM_CTRL(CTRL_MEM_ACC);
-			-- Hold instruction fetch for 2 cycles when performing a read data memory access
-			TEMP_B := WB_CTRL(CTRL_EN) and WB_CTRL(CTRL_MEM_ACC) and (not WB_CTRL(CTRL_MEM_RW));
-
-			MEM_DAT_ACC <= TEMP_A or TEMP_B;
-		end process MANUAL_MEM_ACCESS;
-
-
 	-- Pipeline Stage "MEMORY" CTRL Bus ----------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
 		MEM_CTRL_OUT <= MEM_CTRL;
 
 
+
 	-- #####################################################################################################
-	-- ##			PIPELINE STAGE 5: DATA WRITE BACK                                                         ##
+	-- ##			PIPELINE STAGE 6: DATA WRITE BACK                                                         ##
 	-- #####################################################################################################
 
 	-- Pipeline Registers ------------------------------------------------------------------------
@@ -560,6 +505,7 @@ begin
 	-- Pipeline Stage "WRITE BACK" CTRL Bus ------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
 		WB_CTRL_OUT <= WB_CTRL;
+
 
 
 end FLOW_CTRL_STRUCTURE;

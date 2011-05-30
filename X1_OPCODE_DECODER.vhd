@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #        ARM7-Compatible OPCODE Decoding Unit         #
 -- # *************************************************** #
--- # Version 2.4.1, 18.03.2011                           #
+-- # Version 2.4.2, 28.05.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -33,8 +33,6 @@ architecture instruction_decoder of X1_OPCODE_DECODER is
 	-- INPUTS --
 	signal	INSTR_REG			: STD_LOGIC_VECTOR(31 downto 0);
 	signal	DUAL_OP				: STD_LOGIC_VECTOR(04 downto 0);
-	signal	INT_VECTOR_IN		: STD_LOGIC_VECTOR(04 downto 0);
-	signal	EXECUTE_INT_IN		: STD_LOGIC;
 
 	-- OUTPUTS --
 	signal	DEC_CTRL				: STD_LOGIC_VECTOR(31 downto 0);
@@ -53,8 +51,6 @@ begin
 	INSTR_REG		<= OPCODE_DATA_IN;
 
 	DUAL_OP		   <= OPCODE_CTRL_IN(04 downto 00);
-	INT_VECTOR_IN  <= OPCODE_CTRL_IN(09 downto 05);
-	EXECUTE_INT_IN <= OPCODE_CTRL_IN(10);
 	
 	OPCODE_CTRL_OUT(31 downto 00) <= DEC_CTRL;
 	OPCODE_CTRL_OUT(43 downto 32) <= OP_ADR_OUT;
@@ -68,7 +64,7 @@ begin
 	-- ##       ARM COMPATIBLE OPCODE DECODER                                                       ##
 	-- ###############################################################################################
 
-	OPCODE_DECODER: process (INSTR_REG, DUAL_OP, EXECUTE_INT_IN, INT_VECTOR_IN)
+	OPCODE_DECODER: process (INSTR_REG, DUAL_OP)
 		variable temp_3, temp_4 : std_logic_vector(2 downto 0);
 	begin
 
@@ -119,7 +115,7 @@ begin
 					DEC_CTRL(CTRL_MEM_ACC)								<= '1'; -- MEM_ACCESS
 					NEXT_DUAL_OP											<= (others => '0');
 					if (DUAL_OP = "00000") then
-						NEXT_DUAL_OP				<= "----1";
+						NEXT_DUAL_OP				<= "00001";
 						DEC_CTRL(CTRL_MEM_RW)	<= '0'; -- MEM_READ
 						DEC_CTRL(CTRL_WB_EN)		<= '1'; -- WB EN
 					else
@@ -151,6 +147,7 @@ begin
 						IMM_OUT						<= (others => '-'); -- IMMEDIATE
 						DEC_CTRL(CTRL_SHIFTR)	<= '1'; -- SHIFT_REG
 					end if;
+					
 
 					case (INSTR_REG(24 downto 21)) is -- ALU FUNCTION SET
 						when "0000" => DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= L_AND;
@@ -237,6 +234,12 @@ begin
 						DEC_CTRL(CTRL_SHIFTR)	<= '1'; -- SHIFT_REG
 					end if;
 
+						if (INSTR_REG(23) = '0') then -- sub index
+							DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
+						else -- add index
+							DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
+						end if;
+
 					temp_3 := INSTR_REG(20) & INSTR_REG(24) & INSTR_REG(21);
 					case temp_3 is -- L_P_W
 
@@ -247,26 +250,15 @@ begin
 							DEC_CTRL(CTRL_MEM_RW)							<= '0'; -- MEM_READ
 							DEC_CTRL(CTRL_WB_EN)								<= '1'; -- WB EN
 							NEXT_DUAL_OP										<= (others => '0');
-							if (INSTR_REG(23) = '0') then -- sub index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-							else -- add index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-							end if;
 
 
 						when "111" => -- load, pre indexing, write back
 						----------------------------------------------------------------------------------
-							DEC_CTRL(20) <= '0'; -- MEM_WRITE
 							if (DUAL_OP = "00000") then -- ADD/SUB Ra,Ra,Op_B
 								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)	<= INSTR_REG(19 downto 16); -- R_DEST
 								DEC_CTRL(CTRL_MEM_ACC)						<= '0'; -- MEM_ACCESS
 								DEC_CTRL(CTRL_WB_EN)							<= '1'; -- WB EN
-								NEXT_DUAL_OP 									<= "----1";
-								if (INSTR_REG(23) = '0') then -- sub index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-								else -- add index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-								end if;
+								NEXT_DUAL_OP 									<= "00001";
 
 							else -- LD Rd, Ra
 								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)	<= INSTR_REG(15 downto 12); -- R_DEST
@@ -289,13 +281,12 @@ begin
 
 						when "101" => -- load, post indexing, write back
 						----------------------------------------------------------------------------------
-							DEC_CTRL(20) <= '0'; -- MEM_WRITE
 							if (DUAL_OP = "00000") then -- LD Rd,Ra
 								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)	<= INSTR_REG(15 downto 12); -- R_DEST
 								DEC_CTRL(CTRL_MEM_ACC)						<= '1'; -- MEM_ACCESS
 								DEC_CTRL(CTRL_MEM_RW)						<= '0'; -- MEM_READ
 								DEC_CTRL(CTRL_WB_EN)							<= '1'; -- WB EN
-								NEXT_DUAL_OP									<= "----1";
+								NEXT_DUAL_OP									<= "00001";
 								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= PassA; -- ALU_CTRL = PassA
 
 							else -- ADD/SUB Ra,Ra,Op_B
@@ -303,11 +294,6 @@ begin
 								DEC_CTRL(CTRL_MEM_ACC)						<= '0'; -- MEM_ACCESS
 								DEC_CTRL(CTRL_WB_EN)							<= '1'; -- WB EN
 								NEXT_DUAL_OP									<= (others => '0');
-								if (INSTR_REG(23) = '0') then -- sub index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-								else -- add index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-								end if;
 							end if;
 
 
@@ -318,11 +304,6 @@ begin
 							DEC_CTRL(CTRL_MEM_RW)							<= '1'; -- MEM_WRITE
 							DEC_CTRL(CTRL_WB_EN)								<= '0'; -- WB EN
 							NEXT_DUAL_OP										<= (others => '0');
-							if (INSTR_REG(23) = '0') then -- sub index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-							else -- add index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-							end if;
 
 
 						when "011" => -- store, pre indexing, write back
@@ -332,11 +313,6 @@ begin
 							DEC_CTRL(CTRL_MEM_RW)							<= '1'; -- MEM_WRITE
 							DEC_CTRL(CTRL_WB_EN)								<= '1'; -- WB EN
 							NEXT_DUAL_OP										<= (others => '0');
-							if (INSTR_REG(23) = '0') then -- sub index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-							else -- add index
-								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-							end if;
 
 
 						when "000" => -- store, post indexing, no write back
@@ -356,7 +332,7 @@ begin
 								DEC_CTRL(CTRL_MEM_ACC)						<= '1'; -- MEM_ACCESS
 								DEC_CTRL(CTRL_MEM_RW)						<= '1'; -- MEM_WRITE
 								DEC_CTRL(CTRL_WB_EN)							<= '0'; -- WB EN
-								NEXT_DUAL_OP									<= "----1";
+								NEXT_DUAL_OP									<= "00001";
 								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassA; -- ALU_CTRL = PassA
 									
 							else -- ADD/SUB Ra,Ra,Op_B
@@ -365,11 +341,6 @@ begin
 								DEC_CTRL(CTRL_MEM_RW)						<= '0'; -- MEM_WRITE
 								DEC_CTRL(CTRL_WB_EN)							<= '1'; -- WB EN
 								NEXT_DUAL_OP									<= (others => '0');
-								if (INSTR_REG(23) = '0') then -- sub index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-								else -- add index
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-								end if;
 							end if;
 
 					end case;
@@ -381,7 +352,7 @@ begin
 				if (INSTR_REG(25) = '1') then -- Branch (and Link)
 				----------------------------------------------------------------------------------
 					DEC_CTRL(CTRL_LINK)   <= INSTR_REG(24); -- LINK
-					DEC_CTRL(CTRL_WB_EN)  <= INSTR_REG(24); -- WB EN
+					DEC_CTRL(CTRL_WB_EN)  <= INSTR_REG(24); -- WB_EN
 					DEC_CTRL(CTRL_CONST)  <= '1'; -- IS_CONST
 					DEC_CTRL(CTRL_BRANCH) <= '1'; -- BRANCH_INSTR
 					DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= A_ADD; -- ALU.ADD

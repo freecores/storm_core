@@ -91,17 +91,12 @@ begin
 		
 			when "00" => -- ALU DATA PROCESSING / SREG ACCESS / MUL(MAC) / (S/U/HW/B) MEM ACCESS
 			-- ===================================================================================
-				DEC_CTRL(CTRL_AF)      <= INSTR_REG(20); -- ALTER_FLAGS
-				DEC_CTRL(CTRL_WB_EN)   <= '1';           -- WB_ENABLE
-				DEC_CTRL(CTRL_CONST)   <= INSTR_REG(25); -- IS_CONST
-				DEC_CTRL(CTRL_MREG_M)  <= INSTR_REG(22); -- CMSR/SMSR access
-				DEC_CTRL(CTRL_MREG_RW) <= INSTR_REG(21); -- read/write access
-				DEC_CTRL(CTRL_MREG_FA) <= not INSTR_REG(16); -- only flag access?
-
 				if ((INSTR_REG(27 downto 22) = "000000") and (INSTR_REG(7 downto 4) = "1001")) then
 				-- MUL/MAC
 				----------------------------------------------------------------------------------
-					DEC_CTRL(CTRL_MS) <= '1'; -- select multiplicator
+					DEC_CTRL(CTRL_AF)                        <= INSTR_REG(20); -- ALTER_FLAGS
+					DEC_CTRL(CTRL_WB_EN)                     <= '1'; -- WB_ENABLE
+					DEC_CTRL(CTRL_MS)                        <= '1'; -- select multiplicator
 					DEC_CTRL(CTRL_RD_3    downto  CTRL_RD_0) <= INSTR_REG(19 downto 16);
 					OP_ADR_OUT(OP_A_ADR_3 downto OP_A_ADR_0) <= INSTR_REG(15 downto 12);
 					OP_ADR_OUT(OP_B_ADR_3 downto OP_B_ADR_0) <= INSTR_REG(11 downto 08);
@@ -123,23 +118,15 @@ begin
 					OP_ADR_OUT(OP_A_ADR_3 downto OP_A_ADR_0) <= INSTR_REG(19 downto 16); -- BASE
 					OP_ADR_OUT(OP_B_ADR_3 downto OP_B_ADR_0) <= INSTR_REG(03 downto 00); -- Offset
 					OP_ADR_OUT(OP_C_ADR_3 downto OP_C_ADR_0) <= INSTR_REG(15 downto 12); -- W_DATA
-					IMM_OUT <= x"000000" & INSTR_REG(11 downto 08) & INSTR_REG(03 downto 00); -- IMMEDIATE
-					DEC_CTRL(CTRL_CONST) <= not INSTR_REG(22); -- IS_CONST
+					IMM_OUT                                  <= x"000000" & INSTR_REG(11 downto 08) & INSTR_REG(03 downto 00); -- IMMEDIATE
+					DEC_CTRL(CTRL_CONST)                     <= INSTR_REG(22); -- IS_CONST
+					DEC_CTRL(CTRL_MEM_SE)                    <= INSTR_REG(6);
 					
-					case (INSTR_REG(5 downto 4)) is
-						when "00" => -- WORD
-							DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_WORD;
-							DEC_CTRL(CTRL_MEM_SE) <= '0';
-						when "01" => -- unsigned HALFWORD
-							DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_HALFWORD;
-							DEC_CTRL(CTRL_MEM_SE) <= '0';
-						when "10" => -- signed BYTE
-							DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_BYTE;
-							DEC_CTRL(CTRL_MEM_SE) <= '1';
-						when others => -- signed HALFWORD
-							DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_HALFWORD;
-							DEC_CTRL(CTRL_MEM_SE) <= '1';
-					end case;
+					if (INSTR_REG(5) = '1') then
+						DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_HALFWORD;
+					else
+						DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_BYTE;
+					end if;
 
 					if (INSTR_REG(23) = '0') then -- sub index
 						DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
@@ -263,29 +250,37 @@ begin
 				elsif (INSTR_REG(27 downto 23) = "00010") and (INSTR_REG(21 downto 20) = "00") and (INSTR_REG(11 downto 4) = "00001001") then
 				-- Single Data Swap SWP
 				----------------------------------------------------------------------------------
-					OP_ADR_OUT(OP_A_ADR_3  downto OP_A_ADR_0) <= INSTR_REG(19 downto 16); -- BASE
-					OP_ADR_OUT(OP_C_ADR_3  downto OP_C_ADR_0) <= INSTR_REG(03 downto 00); -- W_DATA
-					REG_SEL(OP_A_IS_REG)                      <= '1';
-					REG_SEL(OP_B_IS_REG)                      <= '0';
-					REG_SEL(OP_C_IS_REG)                      <= '1';
-					
-					DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0)	<= PassA; -- ALU_CTRL = PassA
-					DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0)	<= '0' & INSTR_REG(22); -- DATA QUANTITY
-					DEC_CTRL(CTRL_MEM_ACC)							<= '1'; -- MEM_ACCESS
-					NEXT_DUAL_OP									<= '0';
+					OP_ADR_OUT(OP_A_ADR_3  downto OP_A_ADR_0)    <= INSTR_REG(19 downto 16); -- BASE
+					OP_ADR_OUT(OP_C_ADR_3  downto OP_C_ADR_0)    <= INSTR_REG(03 downto 00); -- W_DATA
+					DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassA; -- ALU_CTRL = PassA
+					DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= '0' & INSTR_REG(22); -- DATA QUANTITY
+					DEC_CTRL(CTRL_MEM_ACC)                       <= '1'; -- MEM_ACCESS
+					REG_SEL(OP_A_IS_REG)                         <= '1';
+					REG_SEL(OP_B_IS_REG)                         <= '0';
 					if (DUAL_OP = '0') then
 						NEXT_DUAL_OP          <= '1';
 						DEC_CTRL(CTRL_MEM_RW) <= '0'; -- MEM_READ
 						DEC_CTRL(CTRL_WB_EN)  <= '1'; -- WB EN
+						REG_SEL(OP_C_IS_REG)  <= '0';
+						DEC_CTRL(CTRL_WB_EN)  <= '1'; -- WB_ENABLE
 					else
 						NEXT_DUAL_OP          <= '0';
 						DEC_CTRL(CTRL_MEM_RW) <= '1'; -- MEM_WRITE
 						DEC_CTRL(CTRL_WB_EN)  <= '0'; -- WB EN
+						REG_SEL(OP_C_IS_REG)  <= '1';
+						DEC_CTRL(CTRL_WB_EN)  <= '0'; -- WB_ENABLE
 					end if;
 
 
 				else -- ALU operation / MCR access
 				----------------------------------------------------------------------------------
+					DEC_CTRL(CTRL_AF)      <= INSTR_REG(20); -- ALTER_FLAGS
+					DEC_CTRL(CTRL_WB_EN)   <= '1';           -- WB_ENABLE
+					DEC_CTRL(CTRL_CONST)   <= INSTR_REG(25); -- IS_CONST
+					DEC_CTRL(CTRL_MREG_M)  <= INSTR_REG(22); -- CMSR/SMSR access
+					DEC_CTRL(CTRL_MREG_RW) <= INSTR_REG(21); -- read/write access
+					DEC_CTRL(CTRL_MREG_FA) <= not INSTR_REG(16); -- only flag access?
+
 					B_TEMP_1 := INSTR_REG(25) & INSTR_REG(04);
 					case B_TEMP_1 is
 						when "10" | "11" => -- IS_CONST
@@ -379,7 +374,7 @@ begin
 					end case;
 
 				end if;
-					
+			
 
 
 			when "01" => -- UNDEFINED INSTRUCTION INTERRUPT / SINGLE MEMORY ACCESS

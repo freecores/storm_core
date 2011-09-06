@@ -108,7 +108,7 @@ package STORM_core_package is
 	constant CTRL_COND_3      : natural := 15; -- condition code bit 3
 
 	constant CTRL_MS          : natural := 16; -- '0' = shift, '1' = multiply
-	constant CTRL_AF          : natural := 17; -- alter alu flags
+	constant CTRL_AF          : natural := 17; -- alter flags
 	constant CTRL_ALU_FS_0    : natural := 18; -- alu function set bit 0
 	constant CTRL_ALU_FS_1    : natural := 19; -- alu function set bit 1
 	constant CTRL_ALU_FS_2    : natural := 20; -- alu function set bit 2
@@ -119,7 +119,7 @@ package STORM_core_package is
 	constant CTRL_MEM_DQ_1    : natural := 24; -- '0' = see above, '1' = halfword
 	constant CTRL_MEM_SE      : natural := 25; -- '0' = no sign extension, '1' = sign extension
 	constant CTRL_MEM_RW      : natural := 26; -- '0' = read, '1' = write
-	constant CTRL_MEM_USER    : natural := 27; -- '1' = acceess memory with "user_mode" output
+	constant CTRL_MEM_USER    : natural := 27; -- '1' = access memory with "user_mode" output
 
 	constant CTRL_MREG_ACC    : natural := 28; -- '1' = Access machine register file
 	constant CTRL_MREG_M      : natural := 29; -- '0' = CMSR, '1' = SMSR
@@ -194,7 +194,6 @@ package STORM_core_package is
 	-- Taylor Swift - Today Was A Fairy Tale
 	-- Montgomery Gentry - One In Every Crowd
 	-- Tim McGraw - Something Like That
-	-- Trace Adkins - You're Gonna Miss This
 	-- Rascal Flatts - These Days
 	-- Coldwater Jane - Bring On The Love
 	-- Reba McEntire - The Night The Lights Went Out In Georgia
@@ -202,18 +201,12 @@ package STORM_core_package is
 	-- Jerrod Niemann - Lover, Lover
 	-- Craig Morgan - Redneck Yacht Club
 	-- Travis Tritt - I'm Gonna Be Somebody
-	-- Nickelback - Never Gonna Be Alone
-	-- Montgomery Gentry - Oughta Be More Songs About
-	-- Jason Aldean - She's Country
 	-- Crystal Shawanda - You Can Let Go
 	-- Dixie Chicks - Wide Open Spaces
 	-- Collin Raye - I Can Still Feel You
-	-- Jason Aldean - Dirt Road Anthem (amazing!!!)
-	-- Rodney Atkins - Take a Back Road
 	-- Jason Aldean - She's Country
-	-- Tracy Lawrence - For the Love 
+	-- Tracy Lawrence - For the Love
 
-	-- Joe Nichols - The Shape Im In
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
 	constant LOGICAL_OP			: STD_LOGIC	:= '0';	
@@ -236,7 +229,7 @@ package STORM_core_package is
 	constant A_RSC		: STD_LOGIC_VECTOR(3 downto 0) := "1101"; -- reverse sub with carry
 	constant A_CMP		: STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- compare by subtraction
 	constant A_CMN		: STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- compare by addition
-	
+
 	constant PassA		: STD_LOGIC_VECTOR(3 downto 0) := L_TEQ;  -- pass operant A
 	constant PassB		: STD_LOGIC_VECTOR(3 downto 0) := L_MOV;  -- pass operant B
 

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #          Machine Control Register System            #
 -- # *************************************************** #
--- # Version 3.0, 18.07.2011                             #
+-- # Version 3.1, 06.09.2011                             #
 -- #######################################################
 
 library IEEE;
@@ -378,11 +378,13 @@ begin
 					PC_B := (others => '0');
 					PC_C := (others => '0');
 					PC_D := (others => '0');
-				elsif (HALT_IN = '0') and (G_HALT = '0') then -- really conditional to halt_in?
+				elsif (G_HALT = '0') then
 					PC_D := PC_C;
 					PC_C := PC_B;
 					PC_B := PC_A;
-					PC_A := MCR_PC;
+					if (HALT_IN = '0') then
+						PC_A := MCR_PC;
+					end if;
 				end if;
 			end if;
 

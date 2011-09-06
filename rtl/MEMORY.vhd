@@ -16,7 +16,8 @@ use work.STORM_core_package.all;
 entity MEMORY is
 	generic	(
 					MEM_SIZE      : natural; -- memory cells
-					LOG2_MEM_SIZE : natural  -- log2(memory cells)
+					LOG2_MEM_SIZE : natural; -- log2(memory cells)
+					SYNC_READ     : boolean  -- synchronous read
 				);
 	port	(
 				CLK         : in  STD_LOGIC; -- memory master clock
@@ -45,26 +46,7 @@ architecture Behavioral of MEMORY is
 	-----------------------------------------------------------------
 	constant RAM_IMAGE : RAM_IMAGE_TYPE :=
 	(
-		000000 => x"EA000006", -- demo program: fibonacci numbers
-		000001 => x"E1A00000",
-		000002 => x"E1A00000",
-		000003 => x"E1A00000",
-		000004 => x"E1A00000",
-		000005 => x"E1A00000",
-		000006 => x"E1A00000",
-		000007 => x"E1A00000",
-		000008 => x"E3A00000",
-		000009 => x"E3A01001",
-		000010 => x"E3A02000",
-		000011 => x"E3A03064",
-		000012 => x"E35300DC",
-		000013 => x"0A000004",
-		000014 => x"E4830004",
-		000015 => x"E0802001",
-		000016 => x"E1A00001",
-		000017 => x"E1A01002",
-		000018 => x"EAFFFFF8",
-		000019 => x"EAFFFFFE",
+		-- place your order here
 		others => x"F0013007"
 	);
 	-----------------------------------------------------------------
@@ -109,12 +91,15 @@ begin
 						ADR_BUFFER := ADR_TEMP;
 					end if;
 				end loop;
-				--ADR_BUFFER := ADR_TEMP;
 			end if;
 
-			--- Sync Read ---
+			--- Sync / Async Read ---
 			for i in 0 to 3 loop
-				DATA_OUT(8*i+7 downto 8*i) <= MEM_FILE(i)(ADR_BUFFER);
+				if (SYNC_READ = TRUE) then
+					DATA_OUT(8*i+7 downto 8*i) <= MEM_FILE(i)(ADR_BUFFER);
+				else
+					DATA_OUT(8*i+7 downto 8*i) <= MEM_FILE(i)(ADR_TEMP);
+				end if;
 			end loop;
 
 		end process MEM_FILE_ACCESS;

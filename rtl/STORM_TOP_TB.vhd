@@ -16,7 +16,7 @@ end STORM_TOP_TB;
 architecture Structure of STORM_TOP_TB is
 
 	-- clock/reset --
-	signal CLK, RES : STD_LOGIC := '0';
+	signal CLK, RES : STD_LOGIC := '1';
 
 	-- wishbone interface --
 	signal WB_DATA_I : std_logic_vector(31 downto 0);

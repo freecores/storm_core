@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #      Data Write Back Selector & MEM Read Input      #
 -- # *************************************************** #
--- # Version 1.2, 14.07.2011                             #
+-- # Version 1.3, 05.09.2011                             #
 -- #######################################################
 
 library IEEE;
@@ -112,41 +112,41 @@ begin
 
 				-- BYTE TRANSFER --
 				when "01000" => -- byte transfer, no offset, no sign extension
-					RD_DATA_TMP := x"000000" & ENDIAN_TMP(31 downto 24);
-				when "01001" => -- byte transfer, no offset, sign extension
-					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(31 downto 24);
-					for i in 8 to 31 loop
-						RD_DATA_TMP(i) := ENDIAN_TMP(31);
-					end loop;
-				when "01010" => -- byte transfer, one byte offset, no sign extension
-					RD_DATA_TMP := x"000000" & ENDIAN_TMP(23 downto 16);
-				when "01011" => -- byte transfer, one byte offset, sign extension
-					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(23 downto 16); 
-					for i in 8 to 31 loop
-						RD_DATA_TMP(i) := ENDIAN_TMP(23);
-					end loop;
-				when "01100" => -- byte transfer, two bytes offset, no sign extension
-					RD_DATA_TMP := x"000000" & ENDIAN_TMP(15 downto 08);
-				when "01101" => -- byte transfer, two bytes offset, sign extension
-					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(15 downto 08);
-					for i in 8 to 31 loop
-						RD_DATA_TMP(i) := ENDIAN_TMP(15);
-					end loop;
-				when "01110" => -- byte transfer, three bytes offset, no sign extension
 					RD_DATA_TMP := x"000000" & ENDIAN_TMP(07 downto 00);
-				when "01111" => -- byte transfer, three bytes offset, sign extension
+				when "01001" => -- byte transfer, no offset, sign extension
 					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(07 downto 00);
 					for i in 8 to 31 loop
 						RD_DATA_TMP(i) := ENDIAN_TMP(07);
 					end loop;
+				when "01010" => -- byte transfer, one byte offset, no sign extension
+					RD_DATA_TMP := x"000000" & ENDIAN_TMP(15 downto 08);
+				when "01011" => -- byte transfer, one byte offset, sign extension
+					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(15 downto 08); 
+					for i in 8 to 31 loop
+						RD_DATA_TMP(i) := ENDIAN_TMP(15);
+					end loop;
+				when "01100" => -- byte transfer, two bytes offset, no sign extension
+					RD_DATA_TMP := x"000000" & ENDIAN_TMP(23 downto 16);
+				when "01101" => -- byte transfer, two bytes offset, sign extension
+					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(23 downto 16);
+					for i in 8 to 31 loop
+						RD_DATA_TMP(i) := ENDIAN_TMP(23);
+					end loop;
+				when "01110" => -- byte transfer, three bytes offset, no sign extension
+					RD_DATA_TMP := x"000000" & ENDIAN_TMP(31 downto 24);
+				when "01111" => -- byte transfer, three bytes offset, sign extension
+					RD_DATA_TMP(7 downto 0) := ENDIAN_TMP(31 downto 24);
+					for i in 8 to 31 loop
+						RD_DATA_TMP(i) := ENDIAN_TMP(31);
+					end loop;
 
 				-- HALFWORD TRANSFER --
 				when "10000" | "11000" => -- halfword transfer, no offset, no sign extension
-					RD_DATA_TMP := x"0000" & ENDIAN_TMP(31 downto 16);
+					RD_DATA_TMP := x"0000" & ENDIAN_TMP(15 downto 00);
 				when "10001" | "11001" => -- halfword transfer, no offset, sign extension
-					RD_DATA_TMP(15 downto 00) := ENDIAN_TMP(31 downto 16);
+					RD_DATA_TMP(15 downto 00) := ENDIAN_TMP(15 downto 00);
 					for i in 16 to 31 loop
-						RD_DATA_TMP(i) := ENDIAN_TMP(31);
+						RD_DATA_TMP(i) := ENDIAN_TMP(15);
 					end loop;
 				when "10010" | "11010" => -- halfword transfer, one byte offset, no sign extension
 					RD_DATA_TMP := x"0000" & ENDIAN_TMP(23 downto 08);
@@ -156,11 +156,11 @@ begin
 						RD_DATA_TMP(i) := ENDIAN_TMP(23);
 					end loop;
 				when "10100" | "11100" => -- halfword transfer, two bytes offset, no sign extension
-					RD_DATA_TMP := x"0000" & ENDIAN_TMP(15 downto 00);
+					RD_DATA_TMP := x"0000" & ENDIAN_TMP(31 downto 16);
 				when "10101" | "11101" => -- halfword transfer, two bytes offset, sign extension
-					RD_DATA_TMP(15 downto 00) := ENDIAN_TMP(15 downto 00);
+					RD_DATA_TMP(15 downto 00) := ENDIAN_TMP(31 downto 16);
 					for i in 16 to 31 loop
-						RD_DATA_TMP(i) := ENDIAN_TMP(15);
+						RD_DATA_TMP(i) := ENDIAN_TMP(31);
 					end loop;
 				when "10110" | "11110" => -- halfword transfer, three bytes offset, no sign extension
 					RD_DATA_TMP := x"0000" & ENDIAN_TMP(07 downto 00) & ENDIAN_TMP(31 downto 24);

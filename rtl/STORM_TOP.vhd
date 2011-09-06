@@ -205,7 +205,8 @@ architecture Structure of STORM_TOP is
   component MEMORY
     generic	(
 					MEM_SIZE      : natural;
-					LOG2_MEM_SIZE : natural
+					LOG2_MEM_SIZE : natural;
+					SYNC_READ     : boolean
 			);
     port	(
 				CLK           : in  STD_LOGIC;
@@ -351,7 +352,8 @@ begin
 		WORKING_MEMORY: MEMORY
 		generic	map (
 						MEM_SIZE      => IO_BORDER,
-						LOG2_MEM_SIZE => LOG2_IO_BORDER
+						LOG2_MEM_SIZE => LOG2_IO_BORDER,
+						SYNC_READ     => TRUE
 					 )
 		port map	(
 						CLK           => CLK_I,

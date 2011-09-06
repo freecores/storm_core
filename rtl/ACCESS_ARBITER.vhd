@@ -11,7 +11,7 @@
 -- #  If you want to disable resource 1, set the        #
 -- #  switch address to 0x00000000.                     #
 -- # ************************************************** #
--- # Version 1.1.0, 30.08.2011                          #
+-- # Version 1.1.1, 06.09.2011                          #
 -- ######################################################
 
 library IEEE;
@@ -120,26 +120,49 @@ begin
 			variable TEMP : STD_LOGIC_VECTOR(03 downto 00);
 		begin
 			TEMP := CL1_DQ_I & CL1_ADR_I(1 downto 0);
-			case (TEMP) is
-				when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
-					CL1_BYTE_SEL <= "1111";
-				when "0100" => -- BYTE with no offset
-					CL1_BYTE_SEL <= "0001";
-				when "0101" => -- BYTE with one byte offset
-					CL1_BYTE_SEL <= "0010";
-				when "0110" => -- BYTE with two bytes offset
-					CL1_BYTE_SEL <= "0100";
-				when "0111" => -- BYTE with three bytes offset
-					CL1_BYTE_SEL <= "1000";
-				when "1000" | "1100" => -- HALFWORD with no offset
-					CL1_BYTE_SEL <= "0011";
-				when "1001" | "1101" => -- HALFWORD with one byte offset
-					CL1_BYTE_SEL <= "0110";
-				when "1010" | "1110" => -- HALFWORD with two bytes offset
-					CL1_BYTE_SEL <= "1100";
-				when others          => -- HALFWORD with three bytes offset
-					CL1_BYTE_SEL <= "1001";
-			end case;			
+			if (USE_BIG_ENDIAN = TRUE) then
+				case (TEMP) is
+					when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
+						CL1_BYTE_SEL <= "1111";
+					when "0100" => -- BYTE with no offset
+						CL1_BYTE_SEL <= "1000";
+					when "0101" => -- BYTE with one byte offset
+						CL1_BYTE_SEL <= "0100";
+					when "0110" => -- BYTE with two bytes offset
+						CL1_BYTE_SEL <= "0010";
+					when "0111" => -- BYTE with three bytes offset
+						CL1_BYTE_SEL <= "0001";
+					when "1000" | "1100" => -- HALFWORD with no offset
+						CL1_BYTE_SEL <= "1100";
+					when "1001" | "1101" => -- HALFWORD with one byte offset
+						CL1_BYTE_SEL <= "0110";
+					when "1010" | "1110" => -- HALFWORD with two bytes offset
+						CL1_BYTE_SEL <= "0011";
+					when others          => -- HALFWORD with three bytes offset
+						CL1_BYTE_SEL <= "1001";
+				end case;
+			else
+				case (TEMP) is
+					when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
+						CL1_BYTE_SEL <= "1111";
+					when "0100" => -- BYTE with no offset
+						CL1_BYTE_SEL <= "0001";
+					when "0101" => -- BYTE with one byte offset
+						CL1_BYTE_SEL <= "0010";
+					when "0110" => -- BYTE with two bytes offset
+						CL1_BYTE_SEL <= "0100";
+					when "0111" => -- BYTE with three bytes offset
+						CL1_BYTE_SEL <= "1000";
+					when "1000" | "1100" => -- HALFWORD with no offset
+						CL1_BYTE_SEL <= "0011";
+					when "1001" | "1101" => -- HALFWORD with one byte offset
+						CL1_BYTE_SEL <= "0110";
+					when "1010" | "1110" => -- HALFWORD with two bytes offset
+						CL1_BYTE_SEL <= "1100";
+					when others          => -- HALFWORD with three bytes offset
+						CL1_BYTE_SEL <= "1001";
+				end case;			
+			end if;
 		end process CLIENT1_DQ_DECODER;
 
 
@@ -147,26 +170,49 @@ begin
 			variable TEMP : STD_LOGIC_VECTOR(03 downto 00);
 		begin
 			TEMP := CL2_DQ_I & CL2_ADR_I(1 downto 0);
-			case (TEMP) is
-				when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
-					CL2_BYTE_SEL <= "1111";
-				when "0100" => -- BYTE with no offset
-					CL2_BYTE_SEL <= "0001";
-				when "0101" => -- BYTE with one byte offset
-					CL2_BYTE_SEL <= "0010";
-				when "0110" => -- BYTE with two bytes offset
-					CL2_BYTE_SEL <= "0100";
-				when "0111" => -- BYTE with three bytes offset
-					CL2_BYTE_SEL <= "1000";
-				when "1000" | "1100" => -- HALFWORD with no offset
-					CL2_BYTE_SEL <= "0011";
-				when "1001" | "1101" => -- HALFWORD with one byte offset
-					CL2_BYTE_SEL <= "0110";
-				when "1010" | "1110" => -- HALFWORD with two bytes offset
-					CL2_BYTE_SEL <= "1100";
-				when others          => -- HALFWORD with three bytes offset
-					CL2_BYTE_SEL <= "1001";
-			end case;			
+			if (USE_BIG_ENDIAN = TRUE) then
+				case (TEMP) is
+					when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
+						CL2_BYTE_SEL <= "1111";
+					when "0100" => -- BYTE with no offset
+						CL2_BYTE_SEL <= "1000";
+					when "0101" => -- BYTE with one byte offset
+						CL2_BYTE_SEL <= "0100";
+					when "0110" => -- BYTE with two bytes offset
+						CL2_BYTE_SEL <= "0010";
+					when "0111" => -- BYTE with three bytes offset
+						CL2_BYTE_SEL <= "0001";
+					when "1000" | "1100" => -- HALFWORD with no offset
+						CL2_BYTE_SEL <= "1100";
+					when "1001" | "1101" => -- HALFWORD with one byte offset
+						CL2_BYTE_SEL <= "0110";
+					when "1010" | "1110" => -- HALFWORD with two bytes offset
+						CL2_BYTE_SEL <= "0011";
+					when others          => -- HALFWORD with three bytes offset
+						CL2_BYTE_SEL <= "1001";
+				end case;
+			else
+				case (TEMP) is
+					when "0000" | "0001" | "0010" | "0011" => -- WORD with any offset
+						CL2_BYTE_SEL <= "1111";
+					when "0100" => -- BYTE with no offset
+						CL2_BYTE_SEL <= "0001";
+					when "0101" => -- BYTE with one byte offset
+						CL2_BYTE_SEL <= "0010";
+					when "0110" => -- BYTE with two bytes offset
+						CL2_BYTE_SEL <= "0100";
+					when "0111" => -- BYTE with three bytes offset
+						CL2_BYTE_SEL <= "1000";
+					when "1000" | "1100" => -- HALFWORD with no offset
+						CL2_BYTE_SEL <= "0011";
+					when "1001" | "1101" => -- HALFWORD with one byte offset
+						CL2_BYTE_SEL <= "0110";
+					when "1010" | "1110" => -- HALFWORD with two bytes offset
+						CL2_BYTE_SEL <= "1100";
+					when others          => -- HALFWORD with three bytes offset
+						CL2_BYTE_SEL <= "1001";
+				end case;			
+			end if;		
 		end process CLIENT2_DQ_DECODER;
 
 
@@ -269,12 +315,12 @@ begin
 					CL1_DELAY_EN   <= CL1_DELAY_EN_NXT;
 					CL2_DELAY_EN   <= CL2_DELAY_EN_NXT;
 					SAH_EN         <= SAH_EN_NXT;
-					if ((COLLISION and (not COLL_FLAG)) = '0') then
+					--if ((COLLISION and (not COLL_FLAG)) = '0') then
 						CL1_RE1_REQ_FF <= CL1_RE1_REQ;
 						CL1_RE2_REQ_FF <= CL1_RE2_REQ;
 						CL2_RE1_REQ_FF <= CL2_RE1_REQ;
 						CL2_RE2_REQ_FF <= CL2_RE2_REQ;
-					end if;
+					--end if;
 				end if;
 			end if;
 		end process CTRL_UNIT;

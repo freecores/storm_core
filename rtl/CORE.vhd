@@ -137,6 +137,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal EXC_PC           : STD_LOGIC_VECTOR(31 downto 0); -- PC value for exceptions
 	signal WB_CTRL          : STD_LOGIC_VECTOR(31 downto 0); -- WB stage control lines
 	signal WB_DATA_LINE     : STD_LOGIC_VECTOR(31 downto 0); -- data write back line
+	signal MODE_INT         : STD_LOGIC_VECTOR(04 downto 0); -- current processor mode
 
 begin
 	-- #######################################################################################################
@@ -222,6 +223,19 @@ begin
 	-- ------------------------------------------------------------------------------
 		I_MEM_ADR   <= INF_PC;
 		I_MEM_DQ    <= DQ_WORD;
+
+	-- Delay 'MODE' for 1 cycle, so it is sync to memory interface signals
+	-- ------------------------------------------------------------------------------
+		MODE_SYNC: process(gCLK, gRES, G_HALT)
+		begin
+			if rising_edge(gCLK) then
+				if (gRES = '1') then
+					MODE <= (others => '0');
+				elsif (G_HALT = '0') then
+					MODE <= MODE_INT;
+				end if;
+			end if;
+		end process MODE_SYNC;
 
 
 	-- #######################################################################################################
@@ -352,7 +366,7 @@ begin
 							ADR_OUT         => MEM_ADR_OUT,		-- address bypass output
 							BP_OUT          => MEM_BP_OUT,		-- bypass(data) output
 							LDST_FW_OUT     => MEM_FW_PATH,		-- memory forwarding path
-							XMEM_MODE       => MODE,            -- processor mode for access
+							XMEM_MODE       => MODE_INT,        -- processor mode for access
 							XMEM_ADR        => D_MEM_ADR,		-- D memory address output
 							XMEM_WR_DTA     => D_MEM_WR_DTA,	-- memory write data output
 							XMEM_ACC_REQ    => D_MEM_REQ,		-- access request

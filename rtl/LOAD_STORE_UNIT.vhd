@@ -114,6 +114,7 @@ begin
 		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB)     <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
 		LDST_FW_OUT(FWD_WB)                           <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
 		LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
+		LDST_FW_OUT(FWD_MEM_R_ACC)                    <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC) and (not CTRL_IN(CTRL_MEM_RW));
 
 
 

@@ -235,7 +235,7 @@ begin
 					HOLD_BUS_OUT(0)          <= '1';  -- enable
 				end if;
 				
-			elsif (MEM_MATCH = '1') and (ALU_FW_IN(FWD_MEM_R_ACC) = '1') then
+			elsif (MEM_MATCH = '1') and (MEM_FW_IN(FWD_MEM_R_ACC) = '1') then
 			-- MEM Register Match with MEM_R access
 				HOLD_BUS_OUT(2 downto 1) <= "01"; -- 1
 				HOLD_BUS_OUT(0)          <= '1';  -- disable

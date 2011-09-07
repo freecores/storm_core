@@ -46,7 +46,7 @@ entity MS_UNIT is
 -- ##           Forwarding Path                                                                 ##
 -- ###############################################################################################
 
-				MSU_FW_OUT      : out STD_LOGIC_VECTOR(40 downto 0) -- forwarding path
+				MSU_FW_OUT      : out STD_LOGIC_VECTOR(39 downto 0) -- forwarding path
 
 			);
 end MS_UNIT;
@@ -152,11 +152,11 @@ begin
 		-- Carry-Need For Rotate Right Extended Shift --
 		MSU_FW_OUT(FWD_CY_NEED) <= '1' when ((CTRL(CTRL_EN) = '1') and (SHIFT_M_TEMP = S_RRX) and (SHIFT_V_TEMP = "00000")) else '0';
 
-		-- MCR Access --
-		MSU_FW_OUT(FWD_MCR_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC);
+		-- MCR Read Access --
+		MSU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW));
 
 		-- Memory Read Access --
-		MSU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW));
+		MSU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC) and (not CTRL(CTRL_MEM_RW));
 
 
 

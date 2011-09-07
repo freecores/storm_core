@@ -222,7 +222,7 @@ begin
 		ACCESS_ID: process(CL1_ADR_I, CL2_ADR_I, CL1_ACC_REQ_I, CL2_ACC_REQ_I)
 		begin
 			--- Client 1 Access ---
-			if (to_integer(unsigned(CL1_ADR_I)) < SWITCH_ADR) then
+			if (to_integer(unsigned(CL1_ADR_I(31 downto 02))) < SWITCH_ADR) then
 				CL1_RE1_REQ <= CL1_ACC_REQ_I;
 				CL1_RE2_REQ <= '0';
 			else
@@ -231,7 +231,7 @@ begin
 			end if;
 
 			--- Client 2 Access ---
-			if (to_integer(unsigned(CL2_ADR_I)) < SWITCH_ADR) then
+			if (to_integer(unsigned(CL2_ADR_I(31 downto 02))) < SWITCH_ADR) then
 				CL2_RE1_REQ <= CL2_ACC_REQ_I;
 				CL2_RE2_REQ <= '0';
 			else

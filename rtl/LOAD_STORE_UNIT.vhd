@@ -40,7 +40,7 @@ port	(
 -- ##           Forwarding Path                                                                 ##
 -- ###############################################################################################
 
-				LDST_FW_OUT     : out STD_LOGIC_VECTOR(40 downto 0);
+				LDST_FW_OUT     : out STD_LOGIC_VECTOR(39 downto 0);
 
 -- ###############################################################################################
 -- ##           External Memory Interface                                                       ##
@@ -111,10 +111,19 @@ begin
 
 	-- Forwarding Path ------------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
-		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB)     <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
-		LDST_FW_OUT(FWD_WB)                           <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
+		-- Forwarding Data--
 		LDST_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
-		LDST_FW_OUT(FWD_MEM_R_ACC)                    <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC) and (not CTRL_IN(CTRL_MEM_RW));
+		-- Destination Register --
+		LDST_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB) <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
+		-- Write Back --
+		LDST_FW_OUT(FWD_WB) <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
+		-- Carry Needed --
+		LDST_FW_OUT(FWD_CY_NEED) <= '0'; -- not needed here
+		-- MCR Read Access --
+		LDST_FW_OUT(FWD_MCR_R_ACC) <= '0'; -- not needed here
+		-- Memory Read Access --
+		LDST_FW_OUT(FWD_MEM_R_ACC) <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_MEM_ACC) and (not CTRL_IN(CTRL_MEM_RW));
+		
 
 
 

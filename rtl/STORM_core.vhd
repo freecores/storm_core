@@ -81,9 +81,8 @@ package STORM_core_package is
 	constant FWD_RD_MSB       : natural := 35; -- Destination Adr Bit 3
 	constant FWD_WB           : natural := 36; -- Data in stage will be written back to reg
 	constant FWD_CY_NEED      : natural := 37; -- Carry flag is needed
-	constant FWD_MCR_ACC      : natural := 38; -- MCR Access
-	constant FWD_MEM_R_ACC    : natural := 40; -- Memory Read Access
-	constant FWD_MEM_ACC      : natural := 41; -- Memory Access
+	constant FWD_MCR_R_ACC    : natural := 38; -- MCR Read Access
+	constant FWD_MEM_R_ACC    : natural := 39; -- Memory Read Access
 
   -- CTRL BUS LOCATIONS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -284,10 +283,10 @@ package STORM_core_package is
 				SHIFT_VAL_OUT   : out STD_LOGIC_VECTOR(04 downto 0);
 				BP1_OUT         : out STD_LOGIC_VECTOR(31 downto 0);
 				HOLD_BUS_OUT    : out STD_LOGIC_VECTOR(02 downto 0);
-				MSU_FW_IN       : in  STD_LOGIC_VECTOR(40 downto 0);
-				ALU_FW_IN       : in  STD_LOGIC_VECTOR(41 downto 0);
-				MEM_FW_IN       : in  STD_LOGIC_VECTOR(40 downto 0);
-				WB_FW_IN        : in  STD_LOGIC_VECTOR(40 downto 0)
+				MSU_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0);
+				ALU_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0);
+				MEM_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0);
+				WB_FW_IN        : in  STD_LOGIC_VECTOR(39 downto 0)
 			);
   end component;
   
@@ -323,7 +322,7 @@ package STORM_core_package is
 				MODE_IN         : in  STD_LOGIC_VECTOR(04 downto 0);
 				ADR_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
 				BP_OUT			: out STD_LOGIC_VECTOR(31 downto 0);
-				LDST_FW_OUT		: out STD_LOGIC_VECTOR(40 downto 0);
+				LDST_FW_OUT		: out STD_LOGIC_VECTOR(39 downto 0);
 				XMEM_MODE       : out STD_LOGIC_VECTOR(04 downto 0);
 				XMEM_ADR		: out STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_WR_DTA		: out STD_LOGIC_VECTOR(31 downto 0);
@@ -390,7 +389,7 @@ package STORM_core_package is
 				RESULT_OUT      : out STD_LOGIC_VECTOR(31 downto 0);
 				CARRY_OUT       : out STD_LOGIC;
 				OVFL_OUT        : out STD_LOGIC;
-				MSU_FW_OUT      : out STD_LOGIC_VECTOR(40 downto 0)
+				MSU_FW_OUT      : out STD_LOGIC_VECTOR(39 downto 0)
 			);
   end component;
 
@@ -443,7 +442,7 @@ package STORM_core_package is
 				MS_OVFL_IN      : in  STD_LOGIC;
 				MCR_DTA_OUT     : out STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DTA_IN      : in  STD_LOGIC_VECTOR(31 downto 0);
-				ALU_FW_OUT      : out STD_LOGIC_VECTOR(41 downto 0)
+				ALU_FW_OUT      : out STD_LOGIC_VECTOR(39 downto 0)
 			);
   end component;
 
@@ -488,7 +487,7 @@ package STORM_core_package is
 				ADR_BUFF_IN     : in  STD_LOGIC_VECTOR(31 downto 0);
 				WB_DATA_OUT     : out STD_LOGIC_VECTOR(31 downto 0);
 				XMEM_RD_DATA    : in  STD_LOGIC_VECTOR(31 downto 0);
-				WB_FW_OUT       : out STD_LOGIC_VECTOR(40 downto 0)
+				WB_FW_OUT       : out STD_LOGIC_VECTOR(39 downto 0)
 			);
   end component;
 

@@ -38,7 +38,7 @@ entity WB_UNIT is
 -- ##       Forwarding Path                                                                     ##
 -- ###############################################################################################
 
-				WB_FW_OUT     : out STD_LOGIC_VECTOR(40 downto 0)  -- forwarding data & ctrl
+				WB_FW_OUT     : out STD_LOGIC_VECTOR(39 downto 0)  -- forwarding data & ctrl
 
 			);
 end WB_UNIT;
@@ -186,9 +186,17 @@ begin
 
 	-- Forwarding Path --------------------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
+		-- Operation Data Result --
 		WB_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= REG_WB_DATA;
-		WB_FW_OUT(FWD_RD_MSB  downto  FWD_RD_LSB)   <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
-		WB_FW_OUT(FWD_WB)                           <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
-
+		-- Destination Register Address --
+		WB_FW_OUT(FWD_RD_MSB  downto  FWD_RD_LSB) <= CTRL_IN(CTRL_RD_3 downto CTRL_RD_0);
+		-- Data Write Back Enabled --
+		WB_FW_OUT(FWD_WB) <= CTRL_IN(CTRL_EN) and CTRL_IN(CTRL_WB_EN);
+		-- Carry-Need --
+		WB_FW_OUT(FWD_CY_NEED) <= '0'; -- not needed here
+		-- MCR Read Access --
+		WB_FW_OUT(FWD_MCR_R_ACC) <= '0'; -- not needed here
+		-- Memory Read Access --
+		WB_FW_OUT(FWD_MEM_R_ACC) <= '0'; -- not needed here
 
 end Structure;

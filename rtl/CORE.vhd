@@ -96,8 +96,8 @@ architecture CORE_STRUCTURE of CORE is
 	signal OP_B_MS          : STD_LOGIC_VECTOR(31 downto 0); -- operand B for multishifter
 	signal MS_CARRY         : STD_LOGIC;                     -- multishifter carry output
 	signal MS_OVFL          : STD_LOGIC;                     -- multishifter overflow output
-	signal MS_FW_PATH       : STD_LOGIC_VECTOR(40 downto 0); -- multishifter forwarding bus
-	signal WB_FW_PATH       : STD_LOGIC_VECTOR(40 downto 0); -- write back unit forwarding bus
+	signal MS_FW_PATH       : STD_LOGIC_VECTOR(39 downto 0); -- multishifter forwarding bus
+	signal WB_FW_PATH       : STD_LOGIC_VECTOR(39 downto 0); -- write back unit forwarding bus
 	signal gCLK             : STD_LOGIC;                     -- global clock line
 	signal gRES             : STD_LOGIC;                     -- global reset line
 	signal G_HALT           : STD_LOGIC;                     -- gloabl halt line
@@ -119,7 +119,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal EX1_CTRL         : STD_LOGIC_VECTOR(31 downto 0); -- EX stage control lines
 	signal EX_BP1_OUT       : STD_LOGIC_VECTOR(31 downto 0); -- bypass 1 register
 	signal EX_ALU_OUT       : STD_LOGIC_VECTOR(31 downto 0); -- alu result output
-	signal ALU_FW_PATH      : STD_LOGIC_VECTOR(41 downto 0); -- alu forwarding path
+	signal ALU_FW_PATH      : STD_LOGIC_VECTOR(39 downto 0); -- alu forwarding path
 	signal EX_BP_OUT        : STD_LOGIC_VECTOR(31 downto 0);
 	signal EX_ADR_OUT       : STD_LOGIC_VECTOR(31 downto 0);
 	signal EX_RES_OUT       : STD_LOGIC_VECTOR(31 downto 0);
@@ -128,7 +128,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal MEM_DTA_OUT      : STD_LOGIC_VECTOR(31 downto 0); -- mem_data and bp2 register
 	signal MEM_ADR_OUT      : STD_LOGIC_VECTOR(31 downto 0); -- mem_data address bypass
 	signal MEM_BP_OUT       : STD_LOGIC_VECTOR(31 downto 0); -- mem_data and bp2 register
-	signal MEM_FW_PATH      : STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding path
+	signal MEM_FW_PATH      : STD_LOGIC_VECTOR(39 downto 0); -- memory forwarding path
 	signal SHIFT_VAL_BUFF   : STD_LOGIC_VECTOR(04 downto 0); -- shift value for barrelshifter
 	signal REG_PC           : STD_LOGIC_VECTOR(31 downto 0); -- PC value for manual operations
 	signal JMP_PC           : STD_LOGIC_VECTOR(31 downto 0); -- PC value for branches
@@ -137,7 +137,6 @@ architecture CORE_STRUCTURE of CORE is
 	signal EXC_PC           : STD_LOGIC_VECTOR(31 downto 0); -- PC value for exceptions
 	signal WB_CTRL          : STD_LOGIC_VECTOR(31 downto 0); -- WB stage control lines
 	signal WB_DATA_LINE     : STD_LOGIC_VECTOR(31 downto 0); -- data write back line
-	signal MODE_INT         : STD_LOGIC_VECTOR(04 downto 0); -- current processor mode
 
 begin
 	-- #######################################################################################################
@@ -224,18 +223,6 @@ begin
 		I_MEM_ADR   <= INF_PC;
 		I_MEM_DQ    <= DQ_WORD;
 
-	-- Delay 'MODE' for 1 cycle, so it is sync to memory interface signals
-	-- ------------------------------------------------------------------------------
-		MODE_SYNC: process(gCLK, gRES, G_HALT)
-		begin
-			if rising_edge(gCLK) then
-				if (gRES = '1') then
-					MODE <= (others => '0');
-				elsif (G_HALT = '0') then
-					MODE <= MODE_INT;
-				end if;
-			end if;
-		end process MODE_SYNC;
 
 
 	-- #######################################################################################################
@@ -366,7 +353,7 @@ begin
 							ADR_OUT         => MEM_ADR_OUT,		-- address bypass output
 							BP_OUT          => MEM_BP_OUT,		-- bypass(data) output
 							LDST_FW_OUT     => MEM_FW_PATH,		-- memory forwarding path
-							XMEM_MODE       => MODE_INT,        -- processor mode for access
+							XMEM_MODE       => MODE,            -- processor mode for access
 							XMEM_ADR        => D_MEM_ADR,		-- D memory address output
 							XMEM_WR_DTA     => D_MEM_WR_DTA,	-- memory write data output
 							XMEM_ACC_REQ    => D_MEM_REQ,		-- access request

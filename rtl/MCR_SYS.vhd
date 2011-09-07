@@ -204,6 +204,8 @@ begin
 				if (RES = '1') then
 					MCR_PC   <= (others => '0'); -- start at 0
 					MCR_CMSR <= (others => '0');
+					MCR_CMSR(SREG_FIQ_DIS) <= '1'; -- disable FIQ
+					MCR_CMSR(SREG_IRQ_DIS) <= '1'; -- disable FIQ
 					MCR_CMSR(SREG_MODE_4 downto SREG_MODE_0) <= Supervisor32_MODE; -- we're the boss after rest
 					SMSR_FIQ <= x"ACABBAAF"; -- setup value
 					SMSR_SVC <= x"00000013"; -- setup value

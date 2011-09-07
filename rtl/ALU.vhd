@@ -51,7 +51,7 @@ entity ALU is
 -- ##           Forwarding Path                                                                 ##
 -- ###############################################################################################
 
-				ALU_FW_OUT      : out STD_LOGIC_VECTOR(41 downto 0) -- forwarding path
+				ALU_FW_OUT      : out STD_LOGIC_VECTOR(39 downto 0) -- forwarding path
 
 			);
 end ALU;
@@ -95,13 +95,19 @@ begin
 
 	-- Forwarding Paths ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
+		-- Operation Data Result --
 		ALU_FW_OUT(FWD_DATA_MSB downto FWD_DATA_LSB) <= ALU_OUT(31 downto 0);
-		ALU_FW_OUT(FWD_RD_MSB   downto   FWD_RD_LSB) <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
-		
-		ALU_FW_OUT(FWD_WB)        <= CTRL(CTRL_EN) and CTRL(CTRL_WB_EN); --(CTRL(CTRL_EN) and (not CTRL(CTRL_BRANCH)) and CTRL(CTRL_WB_EN)); -- write back enabled
-		ALU_FW_OUT(FWD_MEM_ACC)   <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC); -- memory access
-		ALU_FW_OUT(FWD_MCR_ACC)   <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC); -- mreg access
-		ALU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW)); -- memory read access
+		-- Destination Register Address --
+		ALU_FW_OUT(FWD_RD_MSB downto FWD_RD_LSB) <= CTRL(CTRL_RD_3 downto CTRL_RD_0);
+		-- Data Write Back Enabled --
+		ALU_FW_OUT(FWD_WB) <= CTRL(CTRL_EN) and CTRL(CTRL_WB_EN);
+		-- Carry-Need --
+		ALU_FW_OUT(FWD_CY_NEED) <= '0'; -- not needed here
+		-- MCR Read Access --
+		ALU_FW_OUT(FWD_MCR_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MREG_ACC) and (not CTRL(CTRL_MREG_RW));
+		-- Memory Read Access --
+		ALU_FW_OUT(FWD_MEM_R_ACC) <= CTRL(CTRL_EN) and CTRL(CTRL_MEM_ACC)  and (not CTRL(CTRL_MEM_RW));
+
 
 
 

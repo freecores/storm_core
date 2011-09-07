@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #      Operand Fetch & Data Dependency Detector       #
 -- # *************************************************** #
--- # Version 2.4.4, 03.08.2011                           #
+-- # Version 2.4.5, 07.09.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -46,10 +46,10 @@ entity OPERAND_UNIT is
 -- ##           Forwarding Paths                                                                ##
 -- ###############################################################################################
 
-				MSU_FW_IN       : in  STD_LOGIC_VECTOR(40 downto 0); -- msu forwarding data & ctrl
-				ALU_FW_IN       : in  STD_LOGIC_VECTOR(41 downto 0); -- alu forwarding data & ctrl
-				MEM_FW_IN       : in  STD_LOGIC_VECTOR(40 downto 0); -- memory forwarding data & ctrl
-				WB_FW_IN        : in  STD_LOGIC_VECTOR(40 downto 0)  -- write back forwaring data & ctrl
+				MSU_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0); -- msu forwarding data & ctrl
+				ALU_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0); -- alu forwarding data & ctrl
+				MEM_FW_IN       : in  STD_LOGIC_VECTOR(39 downto 0); -- memory forwarding data & ctrl
+				WB_FW_IN        : in  STD_LOGIC_VECTOR(39 downto 0)  -- write back forwaring data & ctrl
 
 			);
 end OPERAND_UNIT;
@@ -57,7 +57,7 @@ end OPERAND_UNIT;
 architecture OPERAND_UNIT_STRUCTURE of OPERAND_UNIT is
 
 	-- Local Signals --
-	signal	OP_A, OP_B, OP_C	: STD_LOGIC_VECTOR(31 downto 0);
+	signal	OP_A, OP_B, OP_C : STD_LOGIC_VECTOR(31 downto 0);
 	
 	-- Address Match --
 	signal	MSU_A_MATCH, MSU_B_MATCH, MSU_C_MATCH : STD_LOGIC;
@@ -112,14 +112,14 @@ begin
 				MEM_C_MATCH <= MEM_FW_IN(FWD_WB) and CTRL_IN(CTRL_EN);
 			end if;
 
-			--- Write Back ---
-			if (OP_ADR_IN(OP_A_ADR_3 downto OP_A_ADR_0) = WB_FW_IN(FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_A_IS_REG) = '1') then
+			--- Write Back Unit ---
+			if (OP_ADR_IN(OP_A_ADR_3 downto OP_A_ADR_0) = WB_FW_IN( FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_A_IS_REG) = '1') then
 				WB_A_MATCH  <= WB_FW_IN(FWD_WB) and CTRL_IN(CTRL_EN);
 			end if;
-			if (OP_ADR_IN(OP_B_ADR_3 downto OP_B_ADR_0) = WB_FW_IN(FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_B_IS_REG) = '1') then
+			if (OP_ADR_IN(OP_B_ADR_3 downto OP_B_ADR_0) = WB_FW_IN( FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_B_IS_REG) = '1') then
 				WB_B_MATCH  <= WB_FW_IN(FWD_WB) and CTRL_IN(CTRL_EN);
 			end if;
-			if (OP_ADR_IN(OP_C_ADR_3 downto OP_C_ADR_0) = WB_FW_IN(FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_C_IS_REG) = '1') then
+			if (OP_ADR_IN(OP_C_ADR_3 downto OP_C_ADR_0) = WB_FW_IN( FWD_RD_MSB downto FWD_RD_LSB)) and (OP_ADR_IN(OP_C_IS_REG) = '1') then
 				WB_C_MATCH  <= WB_FW_IN(FWD_WB) and CTRL_IN(CTRL_EN);
 			end if;
 		
@@ -129,9 +129,9 @@ begin
 
 	-- Local Data Dependency Detector & Forwarding Unit ------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------------------
-		LOCAL_DATA_DEPENDENCE_DETECTOR: process  (CTRL_IN, ALU_FW_IN, MEM_FW_IN, ALU_A_MATCH, ALU_B_MATCH,
-																ALU_C_MATCH, MEM_A_MATCH, MEM_B_MATCH, MEM_C_MATCH, WB_A_MATCH,
-																WB_B_MATCH, WB_C_MATCH, WB_FW_IN, OP_A_IN, OP_B_IN, OP_C_IN)
+		LOCAL_DATA_DEPENDENCE_DETECTOR: process(CTRL_IN, ALU_FW_IN, MEM_FW_IN, ALU_A_MATCH, ALU_B_MATCH,
+		                                        ALU_C_MATCH, MEM_A_MATCH, MEM_B_MATCH, MEM_C_MATCH, WB_A_MATCH,
+		                                        WB_B_MATCH, WB_C_MATCH, WB_FW_IN, OP_A_IN, OP_B_IN, OP_C_IN)
 			variable LDD_A, LDD_B, LDD_C : std_logic_vector(2 downto 0);
 		begin
 			-- Forward OP_X from EX/MEM/WB-stage if source and destination addresses are equal
@@ -193,7 +193,7 @@ begin
 
 	-- Temporal Data Dependency Detector ---------------------------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------------------
-		TEMPORAL_DDD: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN, MEM_MATCH)
+		TEMPORAL_DDD: process(MSU_MATCH, ALU_MATCH, MSU_FW_IN, ALU_FW_IN, MEM_FW_IN, MEM_MATCH)
 		begin
 			-- Data conflicts that cannot be solved by forwarding = Temporal Data Dependencies
 			-- -> Pipeline Stalls & Bubbles needed
@@ -213,7 +213,7 @@ begin
 				-- Data dependency OF <-> WB (mem read) form MS
 					HOLD_BUS_OUT(2 downto 1) <= "11"; -- 3
 					HOLD_BUS_OUT(0)          <= '1';  -- enable
-				elsif (MSU_FW_IN(FWD_MCR_ACC) = '1') then
+				elsif (MSU_FW_IN(FWD_MCR_R_ACC) = '1') then
 				-- Data dependency OF <-> MA (MCR access)
 					HOLD_BUS_OUT(2 downto 1) <= "10"; -- 2
 					HOLD_BUS_OUT(0)          <= '1';  -- enable
@@ -229,7 +229,7 @@ begin
 				-- Data dependency OF <-> WB (mem read) from EX
 					HOLD_BUS_OUT(2 downto 1) <= "10"; -- 2
 					HOLD_BUS_OUT(0)          <= '1';  -- enable
-				elsif (ALU_FW_IN(FWD_MCR_ACC) = '1') then
+				elsif (ALU_FW_IN(FWD_MCR_R_ACC) = '1') then
 				-- Data dependency OF <-> MA (MCR access)
 					HOLD_BUS_OUT(2 downto 1) <= "01"; -- 1
 					HOLD_BUS_OUT(0)          <= '1';  -- enable

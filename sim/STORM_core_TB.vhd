@@ -1,9 +1,9 @@
 -- #######################################################
 -- #     < STORM Core Processor by Stephan Nolting >     #
 -- # *************************************************** #
--- #           STORM Core / STORM SoC Testbench          #
+-- #        STORM Core / STORM Demo SoC Testbench        #
 -- # *************************************************** #
--- # Last modified: 16.02.2012                           #
+-- # Last modified: 21.02.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -15,7 +15,7 @@ end STORM_core_TB;
 
 architecture Structure of STORM_core_TB is
 
-	-- Memory Map ---------------------------------------------------------------------
+	-- Address Map --------------------------------------------------------------------
 	-- -----------------------------------------------------------------------------------
 		constant INT_MEM_BASE_C  : STD_LOGIC_VECTOR(31 downto 0) := x"00000000";
 		constant INT_MEM_SIZE_C  : natural := 1024; -- bytes
@@ -55,6 +55,7 @@ architecture Structure of STORM_core_TB is
 		signal CORE_WB_STB_O   : STD_LOGIC;                     -- valid transfer
 		signal CORE_WB_CYC_O   : STD_LOGIC;                     -- valid cycle
 		signal CORE_WB_ACK_I   : STD_LOGIC;                     -- acknowledge
+		signal CORE_WB_ERR_I   : STD_LOGIC;                     -- abnormal termination
 		signal CORE_WB_HALT_I  : STD_LOGIC;                     -- halt request
 
 
@@ -65,12 +66,14 @@ architecture Structure of STORM_core_TB is
 		signal INT_MEM_DATA_O    : STD_LOGIC_VECTOR(31 downto 0);
 		signal INT_MEM_STB_I     : STD_LOGIC;
 		signal INT_MEM_ACK_O     : STD_LOGIC;
+		signal INT_MEM_ERR_O     : STD_LOGIC;
 		signal INT_MEM_HALT_O    : STD_LOGIC;
 
 		-- General Purpose IO Controller --
 		signal GP_IO_CTRL_DATA_O : STD_LOGIC_VECTOR(31 downto 0);
 		signal GP_IO_CTRL_STB_I  : STD_LOGIC;
 		signal GP_IO_CTRL_ACK_O  : STD_LOGIC;
+		signal GP_IO_CTRL_ERR_O  : STD_LOGIC;
 		signal GP_IO_CTRL_HALT_O : STD_LOGIC;
 		signal GP_IO_OUT_PORT    : STD_LOGIC_VECTOR(31 downto 0);
 		signal GP_IO_IN_PORT     : STD_LOGIC_VECTOR(31 downto 0);
@@ -119,6 +122,7 @@ architecture Structure of STORM_core_TB is
 						WB_STB_O      : out STD_LOGIC;                     -- valid transfer
 						WB_CYC_O      : out STD_LOGIC;                     -- valid cycle
 						WB_ACK_I      : in  STD_LOGIC;                     -- acknowledge
+						WB_ERR_I      : in  STD_LOGIC;                     -- abnormal cycle termination
 						WB_HALT_I     : in  STD_LOGIC;                     -- halt request
 
 						-- Interrupt Request Lines --
@@ -148,7 +152,8 @@ architecture Structure of STORM_core_TB is
 						WB_WE_I       : in  STD_LOGIC; -- write enable
 						WB_STB_I      : in  STD_LOGIC; -- valid cycle
 						WB_ACK_O      : out STD_LOGIC; -- acknowledge
-						WB_HALT_O     : out STD_LOGIC  -- throttle master
+						WB_HALT_O     : out STD_LOGIC; -- throttle master
+						WB_ERR_O      : out STD_LOGIC  -- abnormal cycle termination
 					);
 		end component;
 
@@ -170,6 +175,7 @@ architecture Structure of STORM_core_TB is
 						WB_STB_I      : in  STD_LOGIC; -- valid cycle
 						WB_ACK_O      : out STD_LOGIC; -- acknowledge
 						WB_HALT_O     : out STD_LOGIC; -- throttle master
+						WB_ERR_O      : out STD_LOGIC; -- abnormal termination
 
 						-- IO Port --
 						GP_IO_O       : out STD_LOGIC_VECTOR(31 downto 00);
@@ -232,6 +238,7 @@ begin
 								WB_STB_O          => CORE_WB_STB_O,   -- valid transfer
 								WB_CYC_O          => CORE_WB_CYC_O,   -- valid cycle
 								WB_ACK_I          => CORE_WB_ACK_I,   -- acknowledge
+								WB_ERR_I          => CORE_WB_ERR_I,   -- abnormal cycle termination
 								WB_HALT_I         => CORE_WB_HALT_I,  -- halt request
 
 								-- Interrupt Request Lines --
@@ -281,6 +288,15 @@ begin
 						  '0';
 
 
+	-- Halt Terminal ---------------------------------------------------------------------------------------
+	-- --------------------------------------------------------------------------------------------------------
+		CORE_WB_ERR_I <= INT_MEM_ERR_O    or
+		                 GP_IO_CTRL_ERR_O or
+--		                 DUMMY0_ERR_O     or
+--		                 DUMMY1_ERR_O     or
+						 '0';
+
+
 	-- Valid Transfer Signal Terminal ----------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		INT_MEM_STB_I    <= CORE_WB_STB_O when (CORE_WB_ADR_O(31 downto log2(INT_MEM_SIZE_C)) = INT_MEM_BASE_C(31 downto log2(INT_MEM_SIZE_C))) else '0';
@@ -313,6 +329,7 @@ begin
 						WB_WE_I       => CORE_WB_WE_O,
 						WB_STB_I      => INT_MEM_STB_I,
 						WB_ACK_O      => INT_MEM_ACK_O,
+						WB_ERR_O      => INT_MEM_ERR_O,
 						WB_HALT_O     => INT_MEM_HALT_O
 					);
 
@@ -335,6 +352,7 @@ begin
 						WB_STB_I      => GP_IO_CTRL_STB_I,
 						WB_ACK_O      => GP_IO_CTRL_ACK_O,
 						WB_HALT_O     => GP_IO_CTRL_HALT_O,
+						WB_ERR_O      => GP_IO_CTRL_ERR_O,
 
 						-- IO Port --
 						GP_IO_O       => GP_IO_OUT_PORT,

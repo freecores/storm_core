@@ -492,7 +492,7 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC020F"; -- core update date
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0214"; -- core update date
 					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
 					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length

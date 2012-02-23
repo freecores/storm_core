@@ -68,6 +68,7 @@ entity STORM_TOP is
 				WB_STB_O      : out STD_LOGIC; -- valid transfer
 				WB_CYC_O      : out STD_LOGIC; -- valid cycle
 				WB_ACK_I      : in  STD_LOGIC; -- acknowledge
+				WB_ERR_I      : in  STD_LOGIC; -- abnormal cycle termination
 				WB_HALT_I     : in  STD_LOGIC; -- halt request
 
 -- ###############################################################################################
@@ -357,6 +358,7 @@ begin
 						WB_STB_O            => WB_STB_O,      -- strobe
 						WB_DATA_I           => WB_DATA_I,     -- data
 						WB_ACK_I            => WB_ACK_I,      -- acknowledge
+						WB_ERR_I            => WB_ERR_I,      -- abnormal termination
 						WB_HALT_I           => WB_HALT_I      -- halt
 				);
 

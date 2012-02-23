@@ -96,6 +96,7 @@ entity BUS_UNIT is
 				WB_STB_O           : out STD_LOGIC;                     -- strobe
 				WB_DATA_I          : in  STD_LOGIC_VECTOR(31 downto 0); -- data
 				WB_ACK_I           : in  STD_LOGIC;                     -- acknowledge
+				WB_ERR_I           : in  STD_LOGIC;                     -- abnormal termination
 				WB_HALT_I          : in  STD_LOGIC                      -- halt
             );
 end BUS_UNIT;
@@ -125,6 +126,7 @@ architecture Structure of BUS_UNIT is
 	-- Wishbone Syncs --
 	signal WB_DATA_BUF                   : STD_LOGIC_VECTOR(31 downto 0);
 	signal WB_ACK_BUF                    : STD_LOGIC;
+	signal WB_ERR_BUF                    : STD_LOGIC;
 	signal VA_CYC_BUF,   VA_CYC_BUF_NXT  : STD_LOGIC;
 	signal WE_FLAG,      WE_FLAG_NXT     : STD_LOGIC;
 
@@ -193,6 +195,7 @@ begin
 					TIMEOUT_CNT  <= (others => '0');
 					WB_DATA_BUF  <= (others => '0');
 					WB_ACK_BUF   <= '0';
+					WB_ERR_BUF   <= '0';
 					WE_FLAG      <= '0';
 					VA_CYC_BUF   <= '0';
 					IC_ADR_BUF   <= (others => '0');
@@ -212,6 +215,7 @@ begin
 						-- Wishbone Sync --
 						WB_DATA_BUF <= WB_DATA_I;
 						WB_ACK_BUF  <= WB_ACK_I;
+						WB_ERR_BUF  <= WB_ERR_I;
 						VA_CYC_BUF  <= VA_CYC_BUF_NXT;
 						-- Address Buffer --
 						IC_ADR_BUF  <= IC_ADR_BUF_NXT;
@@ -230,7 +234,7 @@ begin
 		ARBITER_ASYNC: process(ARB_STATE,  STORM_MODE_I, FREEZE_FLAG, BASE_BUF,   TIMEOUT_CNT, IO_ACCESS, WE_FLAG,
 		                       DC_ADR_BUF, DC_P_ADR_BUF, DC_P_ADR_I,  DC_DIRTY_I, DC_MISS_I,   DC_BSA_I,  DC_P_WE_I, DC_P_CS_I,
 		                       IC_ADR_BUF, IC_P_ADR_BUF, IC_MISS_I,
-		                       WB_ADR_BUF, WB_ACK_BUF,   VA_CYC_BUF,  C_BUS_CYCC_I)
+		                       WB_ADR_BUF, WB_ACK_BUF,   WB_ERR_BUF,  VA_CYC_BUF,  C_BUS_CYCC_I)
 			variable IF_BASE_ADR_V, DF_BASE_ADR_V : STD_LOGIC_VECTOR(31 downto 0);
 		begin
 			--- Base Address Word Alignment ---
@@ -324,7 +328,8 @@ begin
 						IC_CS_O <= '1';
 						IC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(IC_ADR_BUF) + 4); -- inc counter
 					end if;
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) then
+					-- Timeout or abnormal cycle termination --
+					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
 						WB_CTI_O        <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						IC_MSS_ACK_O    <= '1'; -- ack miss!
@@ -354,7 +359,8 @@ begin
 						DC_CS_O <= '1';
 						DC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(DC_ADR_BUF) + 4); -- inc counter
 					end if;
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) then
+					-- Timeout or abnormal cycle termination --
+					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
 						WB_CTI_O        <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						DC_MSS_ACK_O    <= '1'; -- ack miss!
@@ -377,7 +383,8 @@ begin
 						DC_DRT_ACK_O    <= '1'; -- ack of pseudo dirty signal
 						DC_MSS_ACK_O    <= '1'; -- ack of pseudo miss signal
 					end if;
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) then
+					-- Timeout or abnormal cycle termination --
+					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
 						WB_CTI_O       <= WB_BST_END_CYC;
 						ARB_STATE_NXT  <= END_TRANSFER;
 						DC_DRT_ACK_O   <= '1'; -- ack of pseudo dirty signal
@@ -409,7 +416,8 @@ begin
 					if (DC_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) then
 						DC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(DC_ADR_BUF) + 4); -- inc pointer
 					end if;
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) then
+					-- Timeout or abnormal cycle termination --
+					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
 						WB_CTI_O        <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						DC_DRT_ACK_O    <= '1'; -- ack dirty signal

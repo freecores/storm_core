@@ -24,10 +24,6 @@
       <obj_property name="ElementShortName">core_clk_i</obj_property>
       <obj_property name="ObjectShortName">core_clk_i</obj_property>
    </wvobject>
-   <wvobject fp_name="/storm_core_tb/STORM_TOP_INST/bus_clk_i" type="logic" db_ref_id="1">
-      <obj_property name="ElementShortName">bus_clk_i</obj_property>
-      <obj_property name="ObjectShortName">bus_clk_i</obj_property>
-   </wvobject>
    <wvobject fp_name="/storm_core_tb/STORM_TOP_INST/PROCESSOR_CORE/halt" type="logic" db_ref_id="1">
       <obj_property name="ElementShortName">halt</obj_property>
       <obj_property name="ObjectShortName">halt</obj_property>
@@ -1148,6 +1144,10 @@
    <wvobject fp_name="/storm_core_tb/core_wb_halt_i" type="logic" db_ref_id="1">
       <obj_property name="ElementShortName">core_wb_halt_i</obj_property>
       <obj_property name="ObjectShortName">core_wb_halt_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/storm_core_tb/core_wb_err_i" type="logic" db_ref_id="1">
+      <obj_property name="ElementShortName">core_wb_err_i</obj_property>
+      <obj_property name="ObjectShortName">core_wb_err_i</obj_property>
    </wvobject>
    <wvobject fp_name="divider7" type="divider">
       <obj_property name="label">INTERNAL MEMORY</obj_property>

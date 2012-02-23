@@ -4,7 +4,7 @@
 -- #         30x32-Bit Banked 1w3r Register File         #
 -- #            (+ address translation unit)             #
 -- # *************************************************** #
--- # Last modified: 28.05.2011                           #
+-- # Last modified: 18.02.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -224,13 +224,13 @@ begin
 
 			case (MODE_I) is
 
-				when User32_MODE =>
+				when User32_MODE | System32_MODE =>
 					REAL_REG_SEL(14 downto 08) := VIRT_REG_SEL(14 downto 08);
 
 				when FIQ32_MODE =>
 					REAL_REG_SEL(21 downto 15) := VIRT_REG_SEL(14 downto 08);
 
-				when Supervisor32_MODE | System32_MODE =>
+				when Supervisor32_MODE =>
 					REAL_REG_SEL(12 downto 08) := VIRT_REG_SEL(12 downto 08);
 					REAL_REG_SEL(23 downto 22) := VIRT_REG_SEL(14 downto 13);
 

@@ -255,7 +255,6 @@ package STORM_core_package is
 	-- Collin Raye - I Can Still Feel You
 	-- Jason Aldean - She's Country
 	-- Kellie Pickler - Best Days Of Your Life
-	-- Rascal Flatts - Stand
 	-- Hunter Hayes - STORM Warning (lol, the core's theme xD)
 	-- Keith Urban - You Gonna Fly
 	-- Big And Rich - Lost In The Moment
@@ -266,6 +265,8 @@ package STORM_core_package is
 	-- Dixie Chicks - Ready To Run
 	-- Eagle-Eye Cherry - Skull Tattoo
 	-- Jake Owen - Barefoot Blue Jean Night
+	-- Keith Urban - You Gonna Fly
+	-- Miranda Lambert - Baggage Claim
 
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -626,6 +627,7 @@ package STORM_core_package is
 				WB_STB_O           : out STD_LOGIC;
 				WB_DATA_I          : in  STD_LOGIC_VECTOR(31 downto 0);
 				WB_ACK_I           : in  STD_LOGIC;
+				WB_ERR_I           : in  STD_LOGIC;
 				WB_HALT_I          : in  STD_LOGIC
             );
   end component;

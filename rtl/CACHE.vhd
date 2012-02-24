@@ -9,7 +9,7 @@
 -- # A cache line contains a complete word (32-bit).     #
 -- # The cache is fully associative.                     #
 -- # *************************************************** #
--- # Last modified: 15.02.2012                           #
+-- # Last modified: 24.02.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -78,6 +78,9 @@ entity CACHE is
 end CACHE;
 
 architecture Behavioral of CACHE is
+
+	-- Is Simulation? --
+	constant IS_SIM : boolean := FALSE;
 
 	-- Cache Arbiter --
 	type   ARB_STATE_TYPE is (STORM_ACCESS, MISS_STATE, IO_REQUEST, IO_PIPE_RESYNC, IO_PIPE_RESYNC_END, DIRTY_STATE, PIPE_RESYNC);
@@ -172,7 +175,7 @@ begin
 					PAGE_SELECT_FF <= (others => '0');
 					UPDATE_HIST_FF <= '0';
 				else
-					PAGE_SELECT_FF <= PAGE_SELECT_FF;
+					PAGE_SELECT_FF <= PAGE_SELECT;
 					UPDATE_HIST_FF <= UPDATE_HISTORY;
 				end if;
 			end if;
@@ -424,7 +427,7 @@ begin
 				----------------------------------------------------------------
 					C_DIRTY_O      <= '1';
 					if (C_WTHRU_I = '1') then
-						B_BASE_O_SEL <= PAGE_SELECT;
+						B_BASE_O_SEL <= PAGE_TRANSLATE;
 					end if;
 					ADR_INT        <= B_ADR_I;
 					DQ_INT         <= DQ_WORD;
@@ -529,7 +532,7 @@ begin
 		-- Dummy for simulation --
 		GEN_DEBUG_MEM:
 		for i in 0 to (CACHE_PAGES*PAGE_SIZE)-1 generate
-			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i);
+			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i) when (IS_SIM = TRUE) else x"00000000";
 		end generate;
 
 

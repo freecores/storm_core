@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #       Load/Store Unit for Data Memory Access        #
 -- # *************************************************** #
--- # Last modified: 25.01.2012                           #
+-- # Last modified: 02.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -58,7 +58,7 @@ port	(
 		);
 end LOAD_STORE_UNIT;
 
-architecture LOAD_STORE_UNIT_STRUCTURE of LOAD_STORE_UNIT is
+architecture Structure of LOAD_STORE_UNIT is
 
 	-- Pipeline Regs --
 	signal DATA_BUFFER : STD_LOGIC_VECTOR(31 downto 0);
@@ -89,14 +89,13 @@ begin
 		
 		-- Address Output --
 		ADR_O      <= ADR_BUFFER;
-
-		-- Data MEM Address --
 		XMEM_ADR_O <= ADR_BUFFER;
 
 
 
 	-- Bypass Multiplexer ---------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
+
 		-- bypass multiplexer for link operations --
 		BP_O <= LNK_PC_I when (CTRL_I(CTRL_LINK) = '1') else DATA_BUFFER;
 		-- Memory Write Data --
@@ -104,9 +103,9 @@ begin
 
 
 
-
 	-- Forwarding Path ------------------------------------------------------------------------
 	-- -------------------------------------------------------------------------------------------
+
 		-- Forwarding Data--
 		LDST_FW_O(FWD_DATA_MSB downto FWD_DATA_LSB) <= BP_TEMP;
 		-- Destination Register --
@@ -121,7 +120,8 @@ begin
 		LDST_FW_O(FWD_MCR_R_ACC) <= '0'; -- not needed here
 		-- Memory Read Access --
 		LDST_FW_O(FWD_MEM_R_ACC) <= CTRL_I(CTRL_EN) and CTRL_I(CTRL_MEM_ACC) and (not CTRL_I(CTRL_MEM_RW));
-		
+		-- Memory-Pc Load --
+		LDST_FW_O(FWD_MEM_PC_LD) <= '0'; -- not needed here
 
 
 
@@ -159,8 +159,7 @@ begin
 
 			--- Mode for MEM access --
 			XMEM_MODE_O <= MODE_I; -- current processor mode
-
 		end process MEM_DATA_INTERFACE;
 
 
-end LOAD_STORE_UNIT_STRUCTURE;
+end Structure;

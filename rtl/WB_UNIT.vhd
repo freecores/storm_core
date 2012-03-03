@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #      Data Write Back Selector & MEM Read Input      #
 -- # *************************************************** #
--- # Last modified: 05.10.2011                           #
+-- # Last modified: 02.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -192,12 +192,16 @@ begin
 		-- Data Write Back Enabled --
 		WB_FW_O(FWD_WB) <= CTRL_I(CTRL_EN) and CTRL_I(CTRL_WB_EN);
 		-- Mode bits modification --
-		WB_FW_O(FWD_MCR_MOD) <= '0'; -- not needed here
+		WB_FW_O(FWD_MCR_MOD)   <= '0'; -- not needed here
 		-- Flag bits modification --
-		WB_FW_O(FWD_FLAG_MOD) <= '0'; -- not needed here
+		WB_FW_O(FWD_FLAG_MOD)  <= '0'; -- not needed here
 		-- MCR Read Access --
 		WB_FW_O(FWD_MCR_R_ACC) <= '0'; -- not needed here
 		-- Memory Read Access --
 		WB_FW_O(FWD_MEM_R_ACC) <= '0'; -- not needed here
+		-- Memory-Pc Load --
+		WB_FW_O(FWD_MEM_PC_LD) <= '0'; -- not needed here
+
+
 
 end Structure;

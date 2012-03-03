@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #      Operand Fetch & Data Dependency Detector       #
 -- # *************************************************** #
--- # Last modified: 03.12.2011                           #
+-- # Last modified: 02.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -206,7 +206,8 @@ begin
 
 			elsif ((MSU_MATCH = '1') and (MSU_FW_I(FWD_MCR_R_ACC) = '1')) or -- Data dependency OF <-> MA (MCR access)
 			      ((ALU_MATCH = '1') and (ALU_FW_I(FWD_MEM_R_ACC) = '1')) or -- Data dependency OF <-> WB (mem read) from EX
-			      (MSU_FW_I(FWD_MCR_MOD) = '1') then
+				  (MSU_FW_I(FWD_MEM_PC_LD) = '1') or -- we're loading the pc from memory
+			      (MSU_FW_I(FWD_MCR_MOD) = '1') then -- mcr may get modified
 					HOLD_BUS_O(2 downto 1) <= "01"; -- 2 cycles
 					HOLD_BUS_O(0)          <= '1';  -- enable
 

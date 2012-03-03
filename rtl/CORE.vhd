@@ -21,7 +21,7 @@
 -- #                                     | -> stnolting@googlemail.com                                   #
 -- #                                     | -> stnolting@web.de                                           #
 -- # *************************************************************************************************** #
--- # Last modified: 08.02.2012                                                                           #
+-- # Last modified: 02.03.2012                                                                           #
 -- #######################################################################################################
 
 library IEEE;
@@ -158,6 +158,7 @@ architecture CORE_STRUCTURE of CORE is
 	signal MCR_STOP_IF      : STD_LOGIC;                           -- stop instruction fetch
 	signal PIPE_EMPTY       : STD_LOGIC;                           -- pipeline is empty
 	signal D_MEM_MODE       : STD_LOGIC_VECTOR(04 downto 0);       -- mode for data mem access
+	signal PC_INJECT        : STD_LOGIC;                           -- load pc with data from wb stage
 
 begin
 	-- Global CLOCK, RESET and HALT Networks -----------------------------------------------------
@@ -199,6 +200,7 @@ begin
 							STOP_IF_I        => MCR_STOP_IF,    -- stop new instruction fetch
 							HOLD_BUS_I       => HALT_BUS,       -- number of bubbles
 							EMPTY_PIPE_O     => PIPE_EMPTY,     -- pipeline is empty
+							PC_INJECT_O      => PC_INJECT,      -- pc load from memory
 							OP_ADR_O         => OP_ADR,         -- operand register addresses
 							IMM_O            => IMMEDIATE,      -- immediate output
 							OF_CTRL_O        => OF_CTRL,        -- stage control OF
@@ -233,6 +235,8 @@ begin
 							INF_PC_O        => INF_PC,          -- PC value for instruction fetch
 							MCR_DATA_I      => MCR_DTA_WR,      -- mcr write data input
 							MCR_DATA_O      => MCR_DTA_RD,      -- mcr read data output
+							PC_INJECT_I     => PC_INJECT,       -- pc load from memory
+							PC_INJECT_D_I   => WB_DATA_LINE,    -- write back data
 							EX_FIQ_I        => FIQ,             -- external fast interrupt request
 							EX_IRQ_I        => IRQ,             -- external interrupt request
 							EX_DAB_I        => D_CACHE_ABORT,   -- external D memory abort request

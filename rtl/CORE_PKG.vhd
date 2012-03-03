@@ -5,7 +5,7 @@
 -- #  This file contains all needed components and       #
 -- #  system parameters for the STORM Core processor.    #
 -- # +-------------------------------------------------+ #
--- # Last modified: 15.02.2012                           #
+-- # Last modified: 02.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -67,7 +67,8 @@ package STORM_core_package is
 	constant FWD_FLAG_MOD     : natural := 38; -- sreg flags will be modified
 	constant FWD_MCR_R_ACC    : natural := 39; -- MCR Read Access
 	constant FWD_MEM_R_ACC    : natural := 40; -- Memory Read Access
-	constant FWD_MSB          : natural := 40; -- width of forwarding bus
+	constant FWD_MEM_PC_LD    : natural := 41; -- pc load from memory
+	constant FWD_MSB          : natural := 41; -- width of forwarding bus
 
   -- CTRL BUS LOCATIONS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -165,8 +166,7 @@ package STORM_core_package is
 	constant CP_SYS_CTRL_0    : natural :=  6; -- system control register 0
 	constant CP_SYS_CTRL_1    : natural :=  7; -- system control register 1
 	constant CP_CSTAT         : natural :=  8; -- cache statistics register
-	constant CP_TIME_THRES    : natural :=  9; -- Internal timer, threshold value
-	constant CP_TIME_COUNT    : natural := 10; -- Internal timer, counter
+
 	constant CP_LFSR_POLY     : natural := 11; -- Internal lfsr, polynomial
 	constant CP_LFSR_DATA     : natural := 12; -- Internal lfsr, shift register
 	constant CP_IO_PORT       : natural := 13; -- Internal IO port
@@ -188,9 +188,6 @@ package STORM_core_package is
 	constant CSCR0_IAR        : natural :=  5; -- auto pre-refresh i-cache for new access
 	constant CSCR0_CIO        : natural :=  6; -- enable cached IO
 
-	constant CSCR0_TEN        : natural := 10; -- internal timer enable
-	constant CSCR0_TIE        : natural := 11; -- internal timer interrupt enable
-	constant CSCR0_TIM        : natural := 12; -- internal timer interrupt mode (0:IRQ/1:FIQ)
 	constant CSCR0_LFSRE      : natural := 13; -- internal LFSR enable
 	constant CSCR0_LFSRM      : natural := 14; -- internal LFSR update mode (0:auto/1:access)
 	constant CSCR0_LFSRD      : natural := 15; -- internal LFSR direction (0:right/1:left))
@@ -254,7 +251,6 @@ package STORM_core_package is
 	-- Dixie Chicks - Wide Open Spaces
 	-- Collin Raye - I Can Still Feel You
 	-- Jason Aldean - She's Country
-	-- Kellie Pickler - Best Days Of Your Life
 	-- Hunter Hayes - STORM Warning (lol, the core's theme xD)
 	-- Keith Urban - You Gonna Fly
 	-- Big And Rich - Lost In The Moment
@@ -267,6 +263,7 @@ package STORM_core_package is
 	-- Jake Owen - Barefoot Blue Jean Night
 	-- Keith Urban - You Gonna Fly
 	-- Miranda Lambert - Baggage Claim
+	-- Diamond Rio - Meet In The Middle
 
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -317,6 +314,8 @@ package STORM_core_package is
 				INF_PC_O       : out STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DATA_I     : in  STD_LOGIC_VECTOR(31 downto 0);
 				MCR_DATA_O     : out STD_LOGIC_VECTOR(31 downto 0);
+				PC_INJECT_I    : in  STD_LOGIC;
+				PC_INJECT_D_I  : in  STD_LOGIC_VECTOR(31 downto 0);
 				EX_FIQ_I       : in  STD_LOGIC;
 				EX_IRQ_I       : in  STD_LOGIC;
 				EX_DAB_I       : in  STD_LOGIC;
@@ -435,6 +434,7 @@ package STORM_core_package is
 				STOP_IF_I       : in  STD_LOGIC;
 				HOLD_BUS_I      : in  STD_LOGIC_VECTOR(02 downto 0);
 				EMPTY_PIPE_O    : out STD_LOGIC;
+				PC_INJECT_O     : out STD_LOGIC;
 				OP_ADR_O        : out STD_LOGIC_VECTOR(14 downto 0);
 				IMM_O           : out STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
 				OF_CTRL_O       : out STD_LOGIC_VECTOR(CTRL_MSB downto 0);

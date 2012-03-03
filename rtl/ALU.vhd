@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #         Arithmetical/Logical/MCR_Access Unit        #
 -- # *************************************************** #
--- # Last modified: 05.10.2011                           #
+-- # Last modified: 02.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -257,6 +257,8 @@ begin
 		ALU_FW_O(FWD_MCR_R_ACC) <= CTRL_I(CTRL_EN) and ((CTRL_I(CTRL_MREG_ACC) and (not CTRL_I(CTRL_MREG_RW))) or (CTRL_I(CTRL_CP_ACC) and (not CTRL_I(CTRL_CP_RW))));
 		-- Memory Read Access --
 		ALU_FW_O(FWD_MEM_R_ACC) <= CTRL_I(CTRL_EN) and CTRL_I(CTRL_MEM_ACC)  and (not CTRL_I(CTRL_MEM_RW));
+		-- Memory-Pc Load --
+		ALU_FW_O(FWD_MEM_PC_LD) <= '0'; -- not needed here
 
 
 

@@ -53,6 +53,9 @@ entity MC_SYS is
 				MCR_DATA_I      : in  STD_LOGIC_VECTOR(31 downto 0); -- mcr data input
 				MCR_DATA_O      : out STD_LOGIC_VECTOR(31 downto 0); -- mcr data output
 
+				PC_INJECT_I     : in  STD_LOGIC;                     -- pc load from memory
+				PC_INJECT_D_I   : in  STD_LOGIC_VECTOR(31 downto 0); -- write back data
+
 -- ###############################################################################################
 -- ##           External Interrupt Lines                                                        ##
 -- ###############################################################################################
@@ -158,45 +161,30 @@ begin
 			end if;
 		end process EXT_INT_SYNC_REG;
 
-		EXT_INT_SYNC: process(CLK_I, CP_REG_FILE(CP_SYS_CTRL_0), CP_IRQ, EX_FIQ_I, EX_IRQ_I)
-			variable fiq_int_v, irq_int_v : std_logic;
+		EXT_INT_SYNC: process(CLK_I)
 		begin
-			-- switch for internal cp interrupts --
-			if (CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_TIE) = '1') then
-				if (CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_TIM) = '0') then
-					fiq_int_v := EX_FIQ_I;
-					irq_int_v := CP_IRQ;
-				else
-					fiq_int_v := CP_IRQ;
-					irq_int_v := EX_IRQ_I;
-				end if;
-			else
-				fiq_int_v := EX_FIQ_I;
-				irq_int_v := EX_IRQ_I;
-			end if;
-
 			-- IRQ REQ Buffer --
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					EXT_INT_REQ_SYNC <= (others => '0');
 				else
-					-- Fast Interrupt Request --
+					-- Fast Interrupt Request (FIQ) --
 					if (FIQ_TAKEN = '1') then
 						EXT_INT_REQ_SYNC(0) <= '0';
-					elsif (fiq_int_v = '1') and (MCR_CMSR(SREG_FIQ_DIS) = '0') then
+					elsif (EX_FIQ_I = '1') and (MCR_CMSR(SREG_FIQ_DIS) = '0') then
 						EXT_INT_REQ_SYNC(0) <= '1';
 					elsif (MCR_CMSR(SREG_FIQ_DIS) = '0') then
 						EXT_INT_REQ_SYNC(0) <= '0';
 					end if;
-					-- Interrupt Request --
+					-- Normal Interrupt Request (IRQ) --
 					if (IRQ_TAKEN = '1') then
 						EXT_INT_REQ_SYNC(1) <= '0';
-					elsif (irq_int_v = '1') and (MCR_CMSR(SREG_IRQ_DIS) = '0') then
+					elsif (EX_IRQ_I = '1') and (MCR_CMSR(SREG_IRQ_DIS) = '0') then
 						EXT_INT_REQ_SYNC(1) <= '1';
 					elsif (MCR_CMSR(SREG_IRQ_DIS) = '0') then
 						EXT_INT_REQ_SYNC(1) <= '0';
 					end if;
-					-- Data Fetch Abort Request --
+					-- Data Fetch Abort Request (DAB) --
 					if (DAB_TAKEN = '1') then
 						EXT_INT_REQ_SYNC(2) <= '0';
 					elsif (EX_DAB_I = '1') and (MCR_CMSR(SREG_DAB_DIS) = '0') then
@@ -204,7 +192,7 @@ begin
 					elsif (MCR_CMSR(SREG_DAB_DIS) = '0') then
 						EXT_INT_REQ_SYNC(2) <= '0';
 					end if;
-					-- Instruction Fetch Abort Request --
+					-- Instruction Fetch Abort Request (IAB) --
 					if (IAB_TAKEN = '1') then
 						EXT_INT_REQ_SYNC(3) <= '0';
 					elsif (EX_IAB_I = '1') and (MCR_CMSR(SREG_IAB_DIS) = '0') then
@@ -311,7 +299,7 @@ begin
 				FLAG_BUS(SREG_MODE_4 downto SREG_MODE_0) <= Undefined32_MODE;
 				NEW_MODE <= Undefined32_MODE;
 
-			--- Priority 6: Software I	nterrupt ---
+			--- Priority 6: Software Interrupt ---
 			elsif (SWI_TAKEN = '1') then
 				INT_VEC  <= SWI_INT_VEC;
 				FLAG_BUS(SREG_MODE_4 downto SREG_MODE_0) <= Supervisor32_MODE;
@@ -368,6 +356,8 @@ begin
 					---- PROGRAM COUNTER ---------------------------------------------------------------
 					if (CONT_EXE = '1') then -- load PC with interrupt vector
 						MCR_PC <= x"000000" & "000" & INT_VEC;
+					elsif (PC_INJECT_I = '1') then -- load pc from memory
+						MCR_PC <= PC_INJECT_D_I;
 					elsif (CTRL_I(CTRL_BRANCH) = '1') then -- taken branch
 						MCR_PC <= MCR_DATA_I;
 					elsif (HALT_I = '0') then -- no hold request -> normal operation
@@ -492,7 +482,7 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0214"; -- core update date
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0301"; -- core update date
 					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
 					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length
@@ -519,20 +509,6 @@ begin
 						CP_REG_FILE(CP_CSTAT)(31 downto 16) <= Std_Logic_Vector(unsigned(CP_REG_FILE(CP_CSTAT)(31 downto 16)) + 1);
 					end if;
 
-					-- Internal Timer: Threshold Value --------------------------------------------
-					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_TIME_THRES) then
-						CP_REG_FILE(CP_TIME_THRES) <= MCR_DATA_I;
-					end if;
-
-					-- Internal Timer: Counter Register -------------------------------------------
-					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_TIME_COUNT) then
-						CP_REG_FILE(CP_TIME_COUNT) <= MCR_DATA_I;
-					elsif (CP_REG_FILE(CP_TIME_COUNT) = CP_REG_FILE(CP_TIME_THRES)) then -- match
-					    CP_REG_FILE(CP_TIME_COUNT) <= (others => '0');
-					elsif (CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_TEN) = '1') then -- timer enable
-						CP_REG_FILE(CP_TIME_COUNT) <= Std_Logic_Vector(unsigned(CP_REG_FILE(CP_TIME_COUNT)) + 1);
-					end if;
-
 					-- Internal LFSR:: Polynomial Register ----------------------------------------
 					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_LFSR_POLY) then
 						CP_REG_FILE(CP_LFSR_POLY) <= MCR_DATA_I;
@@ -554,7 +530,7 @@ begin
 
 					-- Internal IO Register -------------------------------------------
 					CP_REG_FILE(CP_IO_PORT)(CP_IO_I_MSB downto CP_IO_I_LSB) <= IO_PORT_I;
-					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_TIME_COUNT) then
+					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_IO_PORT) then
 						CP_REG_FILE(CP_IO_PORT)(CP_IO_O_MSB downto CP_IO_O_LSB) <= MCR_DATA_I(CP_IO_O_MSB downto CP_IO_O_LSB);
 					end if;
 
@@ -572,22 +548,6 @@ begin
 		C_WTHRU_O   <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CWT);
 		BUS_CYCC_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0);
 		IO_PORT_O   <= CP_REG_FILE(CP_IO_PORT)(CP_IO_O_MSB downto CP_IO_O_LSB);
-
-		--- Internal Timer Interrupt ---
-		INT_TIMER_IRQ: process(CLK_I)
-		begin
-			if rising_edge(CLK_I) then
-				if (RST_I = '1') then
-					CP_IRQ <= '0';
-				elsif (CP_REG_FILE(CP_TIME_COUNT) = CP_REG_FILE(CP_TIME_THRES)) and
-				      (CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_TEN) = '1') and
-					  (CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_TIE) = '1') then
-					CP_IRQ <= '1';
-				else
-					CP_IRQ <= '0';
-				end if;
-			end if;
-		end process INT_TIMER_IRQ;
 
 		--- Internal LFSR XOR ---
 		LFSR_UPDATE: process(CP_REG_FILE)

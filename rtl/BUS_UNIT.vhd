@@ -9,7 +9,7 @@
 -- # Note: I-Cache is read-only for the processor and   #
 -- # write-only for the bus unit.                       #
 -- # ************************************************** #
--- # Last modified: 15.02.2012                          #
+-- # Last modified: 01.03.2012                          #
 -- ######################################################
 
 library IEEE;
@@ -281,12 +281,7 @@ begin
 				-------------------------------------------------------------------------------
 					IC_ADR_BUF_NXT  <= IF_BASE_ADR_V;
 					DC_ADR_BUF_NXT  <= DF_BASE_ADR_V;
-					if (IO_ACCESS = '1') and (DC_P_CS_I = '1') then -- IO access
-						ARB_STATE_NXT   <= IO_REQUEST;
-						FREEZE_FLAG_NXT <= '1';
-						WB_ADR_BUF_NXT  <= DC_P_ADR_I;
-						WE_FLAG_NXT     <= DC_P_WE_I;
-					elsif (IC_MISS_I = '1') then -- i-cache miss -> reload cache page
+					if (IC_MISS_I = '1') then -- i-cache miss -> reload cache page
 						ARB_STATE_NXT   <= DOWNLOAD_I_PAGE;
 						FREEZE_FLAG_NXT <= '1';
 						WB_ADR_BUF_NXT  <= IF_BASE_ADR_V;
@@ -298,6 +293,11 @@ begin
 						WB_ADR_BUF_NXT  <= DF_BASE_ADR_V;
 						BASE_BUF_NXT    <= DF_BASE_ADR_V;
 						WE_FLAG_NXT     <= '0'; -- bus read
+					elsif (IO_ACCESS = '1') and (DC_P_CS_I = '1') then -- IO access
+						ARB_STATE_NXT   <= IO_REQUEST;
+						FREEZE_FLAG_NXT <= '1';
+						WB_ADR_BUF_NXT  <= DC_P_ADR_I;
+						WE_FLAG_NXT     <= DC_P_WE_I;
 					elsif (DC_DIRTY_I = '1') then -- d-cache modification -> copy page to main memory
 						DC_ADR_BUF_NXT  <= DC_BSA_I;
 						WB_ADR_BUF_NXT  <= DC_BSA_I;

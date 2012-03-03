@@ -27,7 +27,7 @@ entity FLOW_CTRL is
 -- ##           Instruction Interface                                                           ##
 -- ###############################################################################################
 
-				INSTR_I             : in  STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0); -- instr memory input
+				INSTR_I             : in  STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0); -- instr cache data input
 				INST_MREQ_O         : out STD_LOGIC; -- automatic instruction fetch memory request
 
 -- ###############################################################################################
@@ -43,12 +43,13 @@ entity FLOW_CTRL is
 -- ##           Extended Control                                                                ##
 -- ###############################################################################################
 
-				PC_HALT_O           : out STD_LOGIC;
-				SREG_I              : in  STD_LOGIC_VECTOR(31 downto 0);
-				EXECUTE_INT_I       : in  STD_LOGIC;
-				STOP_IF_I           : in  STD_LOGIC;
-				HOLD_BUS_I          : in  STD_LOGIC_VECTOR(02 downto 0);
-				EMPTY_PIPE_O        : out STD_LOGIC;
+				PC_HALT_O           : out STD_LOGIC;                     -- freeze program counter
+				SREG_I              : in  STD_LOGIC_VECTOR(31 downto 0); -- current machine status reg
+				EXECUTE_INT_I       : in  STD_LOGIC;                     -- interrupt
+				STOP_IF_I           : in  STD_LOGIC;                     -- freeze instruction fetch
+				HOLD_BUS_I          : in  STD_LOGIC_VECTOR(02 downto 0); -- bubble insert
+				EMPTY_PIPE_O        : out STD_LOGIC;                     -- pipeline is empty
+				PC_INJECT_O         : out STD_LOGIC;                     -- pc load from memory
 
 -- ###############################################################################################
 -- ##           Pipeline Stage Control                                                          ##
@@ -90,6 +91,7 @@ architecture FLOW_CTRL_STRUCTURE of FLOW_CTRL is
 	signal IF_CYCLE_MOD     : STD_LOGIC;
 	signal IF_CYCLE_MOD_NXT : STD_LOGIC;
 	signal BRANCH_TAKEN     : STD_LOGIC;
+	signal PC_INJECT        : STD_LOGIC;
 	signal WR_IR_EN         : STD_LOGIC;
 	signal IR_HALT          : STD_LOGIC;
 	signal CTRL_REG_HALT    : STD_LOGIC;
@@ -381,16 +383,27 @@ begin
 
 	-- Detector for automatic/manual branches ----------------------------------------------------
 	-- ----------------------------------------------------------------------------------------------
-		BRANCH_DETECTOR: process(EX1_CTRL, VALID_INSTR)
+		BRANCH_DETECTOR: process(EX1_CTRL, VALID_INSTR, WB_CTRL)
 			variable manual_branch_v : std_logic;
+			variable pc_injector_v   : std_logic;
 		begin
 			-- Manual Branch when R_Dest = PC --
 			manual_branch_v := '0';
 			if (EX1_CTRL(CTRL_RD_3 downto CTRL_RD_0) = C_PC_ADR) and (EX1_CTRL(CTRL_WB_EN) = '1') then
 				manual_branch_v := '1';
 			end if;
+
+			-- Loading PC from Memory --
+			pc_injector_v := '0';
+			if (WB_CTRL(CTRL_RD_3 downto CTRL_RD_0) = C_PC_ADR) and (WB_CTRL(CTRL_EN) = '1') and
+			   (WB_CTRL(CTRL_MEM_ACC) = '1') and (WB_CTRL(CTRL_MEM_RW) = '0') then
+				pc_injector_v := '1';
+			end if;
+			PC_INJECT_O <= pc_injector_v;
+
 			-- Branch Taken Signal --
-			BRANCH_TAKEN <= VALID_INSTR and (EX1_CTRL(CTRL_BRANCH) or manual_branch_v);
+			BRANCH_TAKEN <= (VALID_INSTR and (EX1_CTRL(CTRL_BRANCH) or manual_branch_v) and
+			                (not EX1_CTRL(CTRL_MEM_ACC))) or pc_injector_v;
 		end process BRANCH_DETECTOR;
 
 

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #        STORM Core / STORM Demo SoC Testbench        #
 -- # *************************************************** #
--- # Last modified: 21.02.2012                           #
+-- # Last modified: 04.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -137,7 +137,8 @@ architecture Structure of STORM_core_TB is
 		component MEMORY
 			generic	(
 						MEM_SIZE      : natural := 256;  -- memory cells
-						LOG2_MEM_SIZE : natural := 8     -- log2(memory cells)
+						LOG2_MEM_SIZE : natural := 8;    -- log2(memory cells)
+						OUTPUT_GATE   : boolean := FALSE -- output and-gate, might be necessary for some bus systems
 					);
 			port	(
 						-- Wishbone Bus --
@@ -315,7 +316,8 @@ begin
 		INTERNAL_MEMORY: MEMORY
 			generic map	(
 						MEM_SIZE      => INT_MEM_SIZE_C/4, -- memory size in 32-bit cells
-						LOG2_MEM_SIZE => log2(INT_MEM_SIZE_C/4) -- log2 memory size in 32-bit cells
+						LOG2_MEM_SIZE => log2(INT_MEM_SIZE_C/4), -- log2 memory size in 32-bit cells
+						OUTPUT_GATE   => FALSE -- not necessary here
 						)
 			port map(
 						WB_CLK_I      => MAIN_CLK,
@@ -329,8 +331,8 @@ begin
 						WB_WE_I       => CORE_WB_WE_O,
 						WB_STB_I      => INT_MEM_STB_I,
 						WB_ACK_O      => INT_MEM_ACK_O,
-						WB_ERR_O      => INT_MEM_ERR_O,
-						WB_HALT_O     => INT_MEM_HALT_O
+						WB_HALT_O     => INT_MEM_HALT_O,
+						WB_ERR_O      => INT_MEM_ERR_O
 					);
 
 

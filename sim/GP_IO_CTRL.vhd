@@ -1,10 +1,10 @@
--- #######################################################
--- #     < STORM System on Chip by Stephan Nolting >     #
--- # *************************************************** #
--- #         General Purpose 32-bit IO Controller        #
--- # *************************************************** #
--- # Last modified: 16.02.2012                           #
--- #######################################################
+-- ######################################################
+-- #          < STORM SoC by Stephan Nolting >          #
+-- # ************************************************** #
+-- #        General Purpose 32-bit IO Controller        #
+-- # ************************************************** #
+-- # Last modified: 20.02.2012                          #
+-- ######################################################
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -25,6 +25,7 @@ entity GP_IO_CTRL is
 				WB_STB_I      : in  STD_LOGIC; -- valid cycle
 				WB_ACK_O      : out STD_LOGIC; -- acknowledge
 				WB_HALT_O     : out STD_LOGIC; -- throttle master
+				WB_ERR_O      : out STD_LOGIC; -- abnormal termination
 
 				-- IO Port --
 				GP_IO_O       : out STD_LOGIC_VECTOR(31 downto 00);
@@ -102,10 +103,13 @@ begin
 		end process WB_R_ACCESS;
 
 		--- ACK Signal ---
-		WB_ACK_O <= WB_ACK_O_INT;
+		WB_ACK_O  <= WB_ACK_O_INT;
 
 		--- Throttle ---
 		WB_HALT_O <= '0'; -- yeay, we're at full speed!
+
+		--- Error ---
+		WB_ERR_O  <= '0'; -- nothing can go wrong ;)
 
 
 

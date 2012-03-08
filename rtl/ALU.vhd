@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #         Arithmetical/Logical/MCR_Access Unit        #
 -- # *************************************************** #
--- # Last modified: 02.03.2012                           #
+-- # Last modified: 08.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -62,6 +62,7 @@ architecture ALU_STRUCTURE of ALU is
 
 	-- Local Signals --
 	signal ALU_OUT      : STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
+	signal RESULT_TMP   : STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
 	signal ADDER_RES    : STD_LOGIC_VECTOR(DATA_WIDTH   downto 0);
 	signal ADD_MODE     : STD_LOGIC_VECTOR(02 downto 0);
 	signal CARRY_OUT    : STD_LOGIC;
@@ -185,7 +186,7 @@ begin
 
 	-- Flag Logic ------------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		ALU_FLAG_LOGIC: process(ADDER_RES, OP_A(31), OP_B(31),     ALU_OUT,     FLAG_I,
+		ALU_FLAG_LOGIC: process(ADDER_RES, OP_A,     OP_B,         ALU_OUT,     FLAG_I,
 		                        CARRY_OUT, OVFL_OUT, MS_CARRY_REG, MS_OVFL_REG, CTRL_I)
 			variable is_add_zero_v : std_logic;
 			variable is_xor_zero_v : std_logic;
@@ -244,7 +245,7 @@ begin
 	-- Forwarding Paths ------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		-- Operation Data Result --
-		ALU_FW_O(FWD_DATA_MSB downto FWD_DATA_LSB) <= ALU_OUT(DATA_WIDTH-1 downto 0);
+		ALU_FW_O(FWD_DATA_MSB downto FWD_DATA_LSB) <= RESULT_TMP;
 		-- Destination Register Address --
 		ALU_FW_O(FWD_RD_MSB downto FWD_RD_LSB) <= CTRL_I(CTRL_RD_3 downto CTRL_RD_0);
 		-- Data Write Back Enabled --
@@ -266,8 +267,10 @@ begin
 	-- --------------------------------------------------------------------------------------------------------
 
 		--- MCR / CP Read Access ---
-		RESULT_O  <= MCR_DTA_I when ((CTRL_I(CTRL_MREG_ACC) = '1') and (CTRL_I(CTRL_MREG_RW) = '0')) or
-                                    ((CTRL_I(CTRL_CP_ACC)   = '1') and (CTRL_I(CTRL_CP_RW)   = '0')) else ALU_OUT;
+		RESULT_TMP  <= MCR_DTA_I when ((CTRL_I(CTRL_MREG_ACC) = '1') and (CTRL_I(CTRL_MREG_RW) = '0')) or
+                                      ((CTRL_I(CTRL_CP_ACC)   = '1') and (CTRL_I(CTRL_CP_RW)   = '0')) else ALU_OUT;
+		RESULT_O <= RESULT_TMP;
+
 		--- MCR Connection ---
 		MCR_DTA_O <= ALU_OUT;
 

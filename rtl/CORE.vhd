@@ -21,7 +21,7 @@
 -- #                                     | -> stnolting@googlemail.com                                   #
 -- #                                     | -> stnolting@web.de                                           #
 -- # *************************************************************************************************** #
--- # Last modified: 02.03.2012                                                                           #
+-- # Last modified: 08.03.2012                                                                           #
 -- #######################################################################################################
 
 library IEEE;
@@ -70,6 +70,7 @@ entity CORE is
 				D_CACHE_HIT     : in  STD_LOGIC;                     -- d-cache hit
 				D_CACHE_FRESH   : out STD_LOGIC;                     -- refresh d-cache
 				D_CACHE_CIO     : out STD_LOGIC;                     -- enable cached IO
+				D_CACHE_SYNC    : in  STD_LOGIC;                     -- cache is sync
 
 -- ###############################################################################################
 -- ##      Instruction Cache Interface                                                          ##
@@ -92,6 +93,7 @@ entity CORE is
 				C_WTHRU_O       : out STD_LOGIC;                     -- write through
 				IO_PORT_OUT     : out STD_LOGIC_VECTOR(15 downto 0); -- direct output
 				IO_PORT_IN      : in  STD_LOGIC_VECTOR(15 downto 0); -- direct input
+				ADR_FEEDBACK_I  : in  STD_LOGIC_VECTOR(31 downto 0); -- address feedback for exceptions
 
 -- ###############################################################################################
 -- ##      Interrupt Interface                                                                  ##
@@ -253,8 +255,10 @@ begin
 							IC_MISS_I       => I_CACHE_MISS,    -- i-cache miss accessear i-cache
 							C_WTHRU_O       => C_WTHRU_O,       -- write through
 							CACHED_IO_O     => D_CACHE_CIO,     -- en cached IO
+							DC_SYNC_I       => D_CACHE_SYNC,    -- d-cache is sync
 							IO_PORT_O       => IO_PORT_OUT,     -- direct output
-							IO_PORT_I       => IO_PORT_IN       -- direct input
+							IO_PORT_I       => IO_PORT_IN,      -- direct input
+							ADR_FEEDBACK_I  => ADR_FEEDBACK_I   -- adr feedback for exception handling
 						);
 
 

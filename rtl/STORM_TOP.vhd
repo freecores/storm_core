@@ -21,7 +21,7 @@
 -- #     - LOAD_STORE_UNIT.vhd              |  Download at http://opencores.org/project,storm_core         #
 -- #     - OPCODE_DECODER.vhd               |                                                              #
 -- # ***************************************************************************************************** #
--- # Last modified: 15.02.2012                                                                        =/\= #
+-- # Last modified: 08.03.2012                                                                        =/\= #
 -- #########################################################################################################
 
 library IEEE;
@@ -100,6 +100,7 @@ architecture Structure of STORM_TOP is
 	signal ST_MODE       : STD_LOGIC_VECTOR(04 downto 0);
 	signal C_WTHRU       : STD_LOGIC;
 	signal C_BUS_CYCC    : STD_LOGIC_VECTOR(15 downto 0);
+	signal ADR_FEEDBACK  : STD_LOGIC_VECTOR(31 downto 0);
 
 	-- STORM D-Cache Interface --
 	signal ST_DC_REQ     : STD_LOGIC;
@@ -113,16 +114,19 @@ architecture Structure of STORM_TOP is
 	signal ST_DC_HIT     : STD_LOGIC;
 	signal ST_DC_FRESH   : STD_LOGIC;
 	signal ST_DC_CIO     : STD_LOGIC;
+	signal ST_DC_SYNC    : STD_LOGIC;
 
 	-- Bus Unit D-Cache Interface --
 	signal BS_DC_CS      : STD_LOGIC;
+	signal BS_DC_P_SEL   : STD_LOGIC_VECTOR(log2(D_CACHE_PAGES)-1 downto 0);
+	signal BS_DC_D_SEL   : STD_LOGIC;
+	signal BS_DC_A_SEL   : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_DC_ADR     : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_DC_DATA_I  : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_DC_DATA_O  : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_DC_WE      : STD_LOGIC;
 	signal BS_DC_DIRTY   : STD_LOGIC;
 	signal BS_DC_MISS    : STD_LOGIC;
-	signal BS_DC_BSA_SEL : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_DC_DRT_ACK : STD_LOGIC;
 	signal BS_DC_MSS_ACK : STD_LOGIC;
 	signal BS_DC_IO_ACC  : STD_LOGIC;
@@ -137,6 +141,7 @@ architecture Structure of STORM_TOP is
 
 	-- Bus Unit I-Cache Interface --
 	signal BS_IC_CS      : STD_LOGIC;
+	signal BS_IC_P_SEL   : STD_LOGIC_VECTOR(log2(I_CACHE_PAGES)-1 downto 0);
 	signal BS_IC_ADR     : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_IC_DATA_I  : STD_LOGIC_VECTOR(31 downto 0);
 	signal BS_IC_WE      : STD_LOGIC;
@@ -178,6 +183,7 @@ begin
 						D_CACHE_HIT     => ST_DC_HIT,    -- d-cache hit
 						D_CACHE_FRESH   => ST_DC_FRESH,  -- refresh d-cache
 						D_CACHE_CIO     => ST_DC_CIO,    -- en cached IO
+						D_CACHE_SYNC    => ST_DC_SYNC,   -- d-cache is sync
 
 						-- Instruction Cache Interface --
 						I_CACHE_REQ     => ST_IC_REQ,    -- memory access in next cycle
@@ -194,6 +200,7 @@ begin
 						C_WTHRU_O       => C_WTHRU,      -- cache write through
 						IO_PORT_OUT     => IO_PORT_O,    -- direct output
 						IO_PORT_IN      => IO_PORT_I,    -- direct input
+						ADR_FEEDBACK_I  => ADR_FEEDBACK, -- address feedback for exceptions
 
 						-- Interrupt Request Lines --
 						IRQ             => IRQ_I,        -- interrupt request
@@ -215,10 +222,13 @@ begin
 						-- Global Control --
 						CORE_CLK_I  => CORE_CLK_I,    -- core clock, all triggering on rising edge
 						RST_I       => RST_I,         -- global reset, high active, sync
-						HALT_I      => ST_HALT,       -- global storm halt signal
+						HALT_I      => ST_HALT,       -- halt cache
 
 						-- Processor Access --
 						P_CS_I      => ST_IC_REQ,     -- processor request
+						B_P_SEL_I   => BS_IC_P_SEL,   -- bus unit page select
+						B_D_SEL_O   => open,          -- selected dirty bit
+						B_A_SEL_O   => open,          -- selected base adr
 						P_ADR_I     => ST_IC_ADR,     -- address input
 						P_DATA_I    => x"00000000",   -- data input
 						P_DATA_O    => ST_IC_RD_DTA,  -- data output
@@ -231,7 +241,6 @@ begin
 						B_DATA_I    => BS_IC_DATA_I,  -- data input
 						B_DATA_O    => open,          -- data output
 						B_WE_I      => BS_IC_WE,      -- write enable
-						B_BSA_O     => open,          -- base adr of selected page
 						B_DRT_ACK_I => '1',           -- dirty acknowledged
 						B_MSS_ACK_I => BS_IC_MSS_ACK, -- miss acknowledged
 						B_IO_ACC_I  => '0',           -- IO access
@@ -243,8 +252,12 @@ begin
 						C_MISS_O    => BS_IC_MISS,    -- cache miss access
 						C_HIT_O     => ST_IC_HIT,     -- cache hit access
 						C_DIRTY_O   => open,          -- cache modified
-						C_WTHRU_I   => '0'            -- write through
+						C_WTHRU_I   => '0',           -- write through
+						C_SYNC_O    => open           -- cache is sync
 				);
+
+			-- selector dummy --
+			BS_IC_P_SEL <= (others => '0');
 
 
 
@@ -261,7 +274,7 @@ begin
 						-- Global Control --
 						CORE_CLK_I  => CORE_CLK_I,    -- core clock, all triggering on rising edge
 						RST_I       => RST_I,         -- global reset, high active, sync
-						HALT_I      => ST_HALT,       -- global storm halt signal
+						HALT_I      => ST_HALT,       -- halt cache
 
 						-- Processor Access --
 						P_CS_I      => ST_DC_REQ,     -- processor request
@@ -273,11 +286,13 @@ begin
 
 						-- Bus Unit Access --
 						B_CS_I      => BS_DC_CS,      -- bus unit request
+						B_P_SEL_I   => BS_DC_P_SEL, -- bus unit page select
+						B_D_SEL_O   => BS_DC_D_SEL, -- selected dirty bit
+						B_A_SEL_O   => BS_DC_A_SEL, -- selected base adr
 						B_ADR_I     => BS_DC_ADR,     -- address input
 						B_DATA_I    => BS_DC_DATA_I,  -- data input
 						B_DATA_O    => BS_DC_DATA_O,  -- data output
 						B_WE_I      => BS_DC_WE,      -- write enable
-						B_BSA_O     => BS_DC_BSA_SEL, -- base adr of selected page
 						B_DRT_ACK_I => BS_DC_DRT_ACK, -- dirty acknowledged
 						B_MSS_ACK_I => BS_DC_MSS_ACK, -- miss acknowledged
 						B_IO_ACC_I  => BS_DC_IO_ACC,  -- IO access
@@ -289,7 +304,8 @@ begin
 						C_MISS_O    => BS_DC_MISS,    -- cache miss access
 						C_HIT_O     => ST_DC_HIT,     -- cache hit access
 						C_DIRTY_O   => BS_DC_DIRTY,   -- cache modified
-						C_WTHRU_I   => C_WTHRU        -- write through
+						C_WTHRU_I   => C_WTHRU,       -- write through
+						C_SYNC_O    => ST_DC_SYNC     -- cache is sync
 				);
 				
 
@@ -320,10 +336,14 @@ begin
 						I_ABORT_O           => I_ABORT,       -- bus error during instruction transfer
 						C_BUS_CYCC_I        => C_BUS_CYCC,    -- max bus cycle length
 						CACHED_IO_I         => ST_DC_CIO,     -- enable cached IO
+						ADR_FEEDBACK_O      => ADR_FEEDBACK,  -- address feedback for exception handling
 
 						-- Data Cache Interface --
 						DC_CS_O             => BS_DC_CS,      -- chip select
 						DC_P_ADR_I          => ST_DC_ADR,     -- processor address
+						DC_P_SEL_O          => BS_DC_P_SEL,   -- page select
+						DC_D_SEL_I          => BS_DC_D_SEL,   -- dirty bit of selected page
+						DC_A_SEL_I          => BS_DC_A_SEL,   -- base adr of sel page
 						DC_P_CS_I           => ST_DC_REQ,     -- processor cache request
 						DC_P_WE_I           => ST_DC_RW,      -- processor write enable
 						DC_ADR_O            => BS_DC_ADR,     -- cache address
@@ -332,7 +352,6 @@ begin
 						DC_WE_O             => BS_DC_WE,      -- write enable
 						DC_MISS_I           => BS_DC_MISS,    -- cache miss access
 						DC_DIRTY_I          => BS_DC_DIRTY,   -- cache modified
-						DC_BSA_I            => BS_DC_BSA_SEL, -- base address of selected page
 						DC_DRT_ACK_O        => BS_DC_DRT_ACK, -- dirty acknowledged
 						DC_MSS_ACK_O        => BS_DC_MSS_ACK, -- miss acknowledged
 						DC_IO_ACC_O         => BS_DC_IO_ACC,  -- IO access

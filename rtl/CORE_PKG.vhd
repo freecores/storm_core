@@ -5,7 +5,7 @@
 -- #  This file contains all needed components and       #
 -- #  system parameters for the STORM Core processor.    #
 -- # +-------------------------------------------------+ #
--- # Last modified: 02.03.2012                           #
+-- # Last modified: 08.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -160,12 +160,11 @@ package STORM_core_package is
 	constant CP_ID_REG_0      : natural :=  0; -- ID register 0
 	constant CP_ID_REG_1      : natural :=  1; -- ID register 1
 	constant CP_ID_REG_2      : natural :=  2; -- ID register 2
-	constant CP_ID_REG_3      : natural :=  3; -- ID register 3
-	constant CP_ID_REG_4      : natural :=  4; -- ID register 4
-	constant CP_ID_REG_5      : natural :=  5; -- ID register 5
+
 	constant CP_SYS_CTRL_0    : natural :=  6; -- system control register 0
-	constant CP_SYS_CTRL_1    : natural :=  7; -- system control register 1
+
 	constant CP_CSTAT         : natural :=  8; -- cache statistics register
+	constant CP_BUS_AFB       : natural :=  9; -- bus unit adr feedback
 
 	constant CP_LFSR_POLY     : natural := 11; -- Internal lfsr, polynomial
 	constant CP_LFSR_DATA     : natural := 12; -- Internal lfsr, shift register
@@ -178,15 +177,16 @@ package STORM_core_package is
 	constant CP_IO_I_LSB      : natural := 16; -- input LSB
 	constant CP_IO_I_MSB      : natural := 31; -- input MSB
 
-  -- INTERNAL COPROCESSOR, SYSTEM CONTROL REGISTER 0 ----------------------------------------
+  -- SYSTEM CONTROL REGISTER 0 --------------------------------------------------------------
   -- ------------------------------------------------------------------------------------------- 
 	constant CSCR0_FDC        : natural :=  0; -- flush d-cache
 	constant CSCR0_CDC        : natural :=  1; -- clear d-cache
 	constant CSCR0_CIC        : natural :=  2; -- flush i-cache
 	constant CSCR0_CWT        : natural :=  3; -- d-cache write-thru enable
-	constant CSCR0_DAR        : natural :=  4; -- auto pre-refresh d-cache for new access
-	constant CSCR0_IAR        : natural :=  5; -- auto pre-refresh i-cache for new access
+	constant CSCR0_DAR        : natural :=  4; -- d-cache "read through"
+	constant CSCR0_IAR        : natural :=  5; -- i-cache "read through"
 	constant CSCR0_CIO        : natural :=  6; -- enable cached IO
+	constant CSCR0_DCS        : natural :=  7; -- d-cache is sync
 
 	constant CSCR0_LFSRE      : natural := 13; -- internal LFSR enable
 	constant CSCR0_LFSRM      : natural := 14; -- internal LFSR update mode (0:auto/1:access)
@@ -332,8 +332,10 @@ package STORM_core_package is
 				IC_MISS_I      : in  STD_LOGIC;
 				C_WTHRU_O      : out STD_LOGIC;
 				CACHED_IO_O    : out STD_LOGIC;
+				DC_SYNC_I      : in  STD_LOGIC;
 				IO_PORT_O      : out STD_LOGIC_VECTOR(15 downto 0);
-				IO_PORT_I      : in  STD_LOGIC_VECTOR(15 downto 0)
+				IO_PORT_I      : in  STD_LOGIC_VECTOR(15 downto 0);
+				ADR_FEEDBACK_I : in  STD_LOGIC_VECTOR(31 downto 0)
 			);
   end component;
 
@@ -553,11 +555,13 @@ package STORM_core_package is
 				P_DQ_I      : in  STD_LOGIC_VECTOR(01 downto 0);
 				P_WE_I      : in  STD_LOGIC;
 				B_CS_I      : in  STD_LOGIC;
+				B_P_SEL_I   : in  STD_LOGIC_VECTOR(LOG2_CACHE_PAGES-1 downto 0);
+				B_D_SEL_O   : out STD_LOGIC;
+				B_A_SEL_O   : out STD_LOGIC_VECTOR(31 downto 0);
 				B_ADR_I     : in  STD_LOGIC_VECTOR(31 downto 0);
 				B_DATA_I    : in  STD_LOGIC_VECTOR(31 downto 0);
 				B_DATA_O    : out STD_LOGIC_VECTOR(31 downto 0);
 				B_WE_I      : in  STD_LOGIC;
-				B_BSA_O     : out STD_LOGIC_VECTOR(31 downto 0);
 				B_DRT_ACK_I : in  STD_LOGIC;
 				B_MSS_ACK_I : in  STD_LOGIC;
 				B_IO_ACC_I  : in  STD_LOGIC;
@@ -567,7 +571,8 @@ package STORM_core_package is
 				C_MISS_O    : out STD_LOGIC;
 				C_HIT_O     : out STD_LOGIC;
 				C_DIRTY_O   : out STD_LOGIC;
-				C_WTHRU_I   : in  STD_LOGIC
+				C_WTHRU_I   : in  STD_LOGIC;
+				C_SYNC_O    : out STD_LOGIC
 			);
   end component;
 
@@ -595,8 +600,12 @@ package STORM_core_package is
 				I_ABORT_O          : out STD_LOGIC;
 				C_BUS_CYCC_I       : in  STD_LOGIC_VECTOR(15 downto 0);
 				CACHED_IO_I        : in  STD_LOGIC;
+				ADR_FEEDBACK_O     : out STD_LOGIC_VECTOR(31 downto 0);
 				DC_CS_O            : out STD_LOGIC;
 				DC_P_ADR_I         : in  STD_LOGIC_VECTOR(31 downto 0);
+				DC_P_SEL_O         : out STD_LOGIC_VECTOR(LOG2_D_CACHE_PAGES-1 downto 0);
+				DC_D_SEL_I         : in  STD_LOGIC;
+				DC_A_SEL_I         : in  STD_LOGIC_VECTOR(31 downto 0);
 				DC_P_CS_I          : in  STD_LOGIC;
 				DC_P_WE_I          : in  STD_LOGIC;
 				DC_ADR_O           : out STD_LOGIC_VECTOR(31 downto 0);
@@ -605,7 +614,6 @@ package STORM_core_package is
 				DC_WE_O            : out STD_LOGIC;
 				DC_MISS_I          : in  STD_LOGIC;
 				DC_DIRTY_I         : in  STD_LOGIC;
-				DC_BSA_I           : in  STD_LOGIC_VECTOR(31 downto 0);
 				DC_DRT_ACK_O       : out STD_LOGIC;
 				DC_MSS_ACK_O       : out STD_LOGIC;
 				DC_IO_ACC_O        : out STD_LOGIC;
@@ -656,6 +664,7 @@ package STORM_core_package is
 				D_CACHE_HIT     : in  STD_LOGIC;
 				D_CACHE_FRESH   : out STD_LOGIC;
 				D_CACHE_CIO     : out STD_LOGIC;
+				D_CACHE_SYNC    : in  STD_LOGIC;
 				I_CACHE_REQ     : out STD_LOGIC;
 				I_CACHE_ADR     : out STD_LOGIC_VECTOR(31 downto 0);
 				I_CACHE_RD_DTA  : in  STD_LOGIC_VECTOR(31 downto 0);
@@ -668,6 +677,7 @@ package STORM_core_package is
 				C_WTHRU_O       : out STD_LOGIC;
 				IO_PORT_OUT     : out STD_LOGIC_VECTOR(15 downto 0);
 				IO_PORT_IN      : in  STD_LOGIC_VECTOR(15 downto 0);
+				ADR_FEEDBACK_I  : in  STD_LOGIC_VECTOR(31 downto 0);
 				IRQ             : in  STD_LOGIC;
 				FIQ             : in  STD_LOGIC
 			);

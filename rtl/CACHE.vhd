@@ -9,7 +9,7 @@
 -- # A cache line contains a complete word (32-bit).     #
 -- # The cache is fully associative.                     #
 -- # *************************************************** #
--- # Last modified: 24.02.2012                           #
+-- # Last modified: 08.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -54,11 +54,13 @@ entity CACHE is
 -- ################################################################################################################
 
 				B_CS_I           : in  STD_LOGIC;                     -- bus unit request
+				B_P_SEL_I        : in  STD_LOGIC_VECTOR(LOG2_CACHE_PAGES-1 downto 0); -- bus unit page select
+				B_D_SEL_O        : out STD_LOGIC;                     -- selected dirty bit
+				B_A_SEL_O        : out STD_LOGIC_VECTOR(31 downto 0); -- selected base adr
 				B_ADR_I          : in  STD_LOGIC_VECTOR(31 downto 0); -- address input
 				B_DATA_I         : in  STD_LOGIC_VECTOR(31 downto 0); -- data input
 				B_DATA_O         : out STD_LOGIC_VECTOR(31 downto 0); -- data output
 				B_WE_I           : in  STD_LOGIC;                     -- write enable
-				B_BSA_O          : out STD_LOGIC_VECTOR(31 downto 0); -- base adr of selected page
 				B_DRT_ACK_I      : in  STD_LOGIC;                     -- dirty acknowledged
 				B_MSS_ACK_I      : in  STD_LOGIC;                     -- miss acknowledged
 				B_IO_ACC_I       : in  STD_LOGIC;                     -- IO access
@@ -73,14 +75,15 @@ entity CACHE is
 				C_MISS_O         : out STD_LOGIC; -- cache miss access
 				C_HIT_O          : out STD_LOGIC; -- cache hit access
 				C_DIRTY_O        : out STD_LOGIC; -- cache modified
-				C_WTHRU_I        : in  STD_LOGIC  -- write through
+				C_WTHRU_I        : in  STD_LOGIC; -- write through
+				C_SYNC_O         : out STD_LOGIC  -- cache is sync to mem/io
 			);
 end CACHE;
 
 architecture Behavioral of CACHE is
 
 	-- Is Simulation? --
-	constant IS_SIM : boolean := FALSE;
+	constant IS_SIM : boolean := TRUE;
 
 	-- Cache Arbiter --
 	type   ARB_STATE_TYPE is (STORM_ACCESS, MISS_STATE, IO_REQUEST, IO_PIPE_RESYNC, IO_PIPE_RESYNC_END, DIRTY_STATE, PIPE_RESYNC);
@@ -154,14 +157,16 @@ begin
 					for i in 0 to CACHE_PAGES-1 loop
 						PAGE_BASE_ADR(i) <= (others => '0');
 					end loop;
-				elsif (SET_NEW_BAS = '1') then
-					PAGE_BASE_ADR(to_integer(unsigned(NEW_ENTRY_PAGE))) <= ADR_INT(31 downto LOG2_PAGE_SIZE+2);
+				else
+					if (SET_NEW_BAS = '1') then
+						PAGE_BASE_ADR(to_integer(unsigned(NEW_ENTRY_PAGE))) <= ADR_INT(31 downto LOG2_PAGE_SIZE+2);
+					end if;
 				end if;
 			end if;
 
 			-- Base ADR output for bus unit --
-			B_BSA_O <= (others => '0');
-			B_BSA_O(31 downto LOG2_PAGE_SIZE+2) <= PAGE_BASE_ADR(to_integer(unsigned(B_BASE_O_SEL)));
+			B_A_SEL_O <= (others => '0');
+			B_A_SEL_O(31 downto LOG2_PAGE_SIZE+2) <= PAGE_BASE_ADR(to_integer(unsigned(B_P_SEL_I)));
 		end process PAGE_ADR_SYS;
 
 
@@ -201,16 +206,18 @@ begin
 					for i in 0 to CACHE_PAGES-1 loop
 						HIST_MEM(i) <= std_logic_vector(to_unsigned(i, LOG2_CACHE_PAGES));
 					end loop;
-				elsif (UPDATE_HIST_FF = '1') then
-					for i in 0 to CACHE_PAGES-1 loop
-						if (hist_mem_ce_v(CACHE_PAGES-1-i) = '1') then
-							if (i = CACHE_PAGES-1) then
-								HIST_MEM(CACHE_PAGES-1-i) <= PAGE_SELECT_FF;
-							else
-								HIST_MEM(CACHE_PAGES-1-i) <= HIST_MEM(CACHE_PAGES-1-i-1);
+				else
+					if (UPDATE_HIST_FF = '1') then
+						for i in 0 to CACHE_PAGES-1 loop
+							if (hist_mem_ce_v(CACHE_PAGES-1-i) = '1') then
+								if (i = CACHE_PAGES-1) then
+									HIST_MEM(CACHE_PAGES-1-i) <= PAGE_SELECT_FF;
+								else
+									HIST_MEM(CACHE_PAGES-1-i) <= HIST_MEM(CACHE_PAGES-1-i-1);
+								end if;
 							end if;
-						end if;
-					end loop;
+						end loop;
+					end if;
 				end if;
 			end if;
 		end process CACHE_ACCESS_HISTORY;
@@ -227,10 +234,12 @@ begin
 					for i in 0 to CACHE_PAGES-1 loop
 						VALID_FLAG(i) <= '0';
 					end loop;
-				elsif (CLR_CUR_VAL = '1') then
-					VALID_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '0';
-				elsif (SET_CUR_VAL = '1') then
-					VALID_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '1';
+				else
+					if (CLR_CUR_VAL = '1') then
+						VALID_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '0';
+					elsif (SET_CUR_VAL = '1') then
+						VALID_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '1';
+					end if;
 				end if;
 			end if;
 		end process PAGE_VALID_SYS;
@@ -240,7 +249,8 @@ begin
 	-- Page Modification Flag ------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		DIRTY_REG: process(CORE_CLK_I, DIRTY_FLAG, VALID_FLAG)
-			variable temp_v : std_logic;
+			variable temp1_v : std_logic;
+			variable temp2_v : std_logic;
 		begin
 			-- Sync update --
 			if rising_edge(CORE_CLK_I) then
@@ -248,26 +258,38 @@ begin
 					for i in 0 to CACHE_PAGES-1 loop
 						DIRTY_FLAG(i) <= '0';
 					end loop;
-				elsif (SET_ALL_DRT = '1') then
-					for i in 0 to CACHE_PAGES-1 loop
-						DIRTY_FLAG(i) <= '1';
-					end loop;
 				else
-					if (CLR_CUR_DRT = '1') then
-						DIRTY_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '0';
-					elsif (SET_CUR_DRT = '1') then
-						DIRTY_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '1';
+					if (SET_ALL_DRT = '1') then
+						for i in 0 to CACHE_PAGES-1 loop
+							DIRTY_FLAG(i) <= '1';
+						end loop;
+					else
+						if (CLR_CUR_DRT = '1') then
+							DIRTY_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '0';
+						elsif (SET_CUR_DRT = '1') then
+							DIRTY_FLAG(to_integer(unsigned(PAGE_SELECT))) <= '1';
+						end if;
 					end if;
 				end if;
 			end if;
 
 			-- Any dirty bits? --
-			temp_v := '0';
+			temp1_v := '0';
 			for i in 0 to CACHE_PAGES-1 loop
-				temp_v := temp_v or (DIRTY_FLAG(i) and VALID_FLAG(i));
+				temp1_v := temp1_v or (DIRTY_FLAG(i) and VALID_FLAG(i));
 			end loop;
-			CACHE_DIRTY <= temp_v;
+			CACHE_DIRTY <= temp1_v;
+
+			-- Cache sync? --
+			temp2_v := '1';
+			for i in 0 to CACHE_PAGES-1 loop
+				temp2_v := temp2_v and (DIRTY_FLAG(i) nand VALID_FLAG(i));
+			end loop;
+			C_SYNC_O <= temp2_v;
 		end process DIRTY_REG;
+
+		--- Bus Unit Single Dirty Flag Output ---
+		B_D_SEL_O <= DIRTY_FLAG(to_integer(unsigned(B_P_SEL_I))) and VALID_FLAG(to_integer(unsigned(B_P_SEL_I)));
 
 
 
@@ -314,7 +336,7 @@ begin
 
 
 
-		CACHE_ARBITER: process(ARB_STATE, HIST_MEM, PAGE_TRANSLATE, ADR_BUF, DAT_BUF, HST_BUF, BIT_BUF, CACHE_R_DATA, DIRTY_FLAG,
+		CACHE_ARBITER: process(ARB_STATE, HIST_MEM, PAGE_TRANSLATE, ADR_BUF, DAT_BUF, HST_BUF, BIT_BUF, CACHE_R_DATA, DIRTY_FLAG, VALID_FLAG,
 		                       CACHE_MISS, CACHE_DIRTY, C_FRESH_I, C_CLEAR_I, C_FLUSH_I, CACHE_HIT, C_WTHRU_I,
 		                       P_ADR_I, P_DATA_I, P_CS_I, P_WE_I, P_DQ_I,
 							   B_ADR_I, B_DATA_I, B_CS_I, B_WE_I, B_IO_ACC_I, B_MSS_ACK_I, B_DRT_ACK_I)
@@ -375,7 +397,8 @@ begin
 					ADR_BUF_NXT    <= P_ADR_I;
 					HST_BUF_NXT    <= HIST_MEM(CACHE_PAGES-1); -- next page for writing
 					BIT_BUF_NXT    <= P_CS_I and P_WE_I;
-					if (C_WTHRU_I = '0') and (DIRTY_FLAG(to_integer(unsigned(HIST_MEM(CACHE_PAGES-1)))) = '1') then
+					if (C_WTHRU_I = '0') and (DIRTY_FLAG(to_integer(unsigned(HIST_MEM(CACHE_PAGES-1)))) = '1') and
+					   (VALID_FLAG(to_integer(unsigned(HIST_MEM(CACHE_PAGES-1)))) = '1') then
 						ARB_STATE_NXT <= DIRTY_STATE;
 					elsif (B_IO_ACC_I = '1') and (P_CS_I = '1') then
 						ARB_STATE_NXT <= IO_REQUEST;
@@ -539,20 +562,14 @@ begin
 
 	-- Read-Access Synchronizer ----------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		R_ACC_SYNC: process(CORE_CLK_I, HALT_I, ARB_STATE)
-			variable sel_v : std_logic;
+		R_ACC_SYNC: process(CORE_CLK_I)
 		begin
-			sel_v := '0';
-			if (HALT_I = '1') and (ARB_STATE = STORM_ACCESS) then
-				sel_v := '1';
-			end if;
-		
 			if rising_edge(CORE_CLK_I) then
 				if (RST_I = '1') then
 					P_DATA_O_SEL <= '0';
 					P_DATA_O_BUF <= (others => '0');
-				else
-					P_DATA_O_SEL <= sel_v;
+				elsif (ARB_STATE = STORM_ACCESS) then
+					P_DATA_O_SEL <= HALT_I;
 					if (P_DATA_O_SEL = '0') then
 						P_DATA_O_BUF <= P_DATA_O_INT;
 					end if;

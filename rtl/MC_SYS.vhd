@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #              Machine Control System                 #
 -- # *************************************************** #
--- # Last modified: 15.02.2012                           #
+-- # Last modified: 08.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -81,13 +81,15 @@ entity MC_SYS is
 				IC_MISS_I       : in  STD_LOGIC; -- i-cache miss access
 				C_WTHRU_O       : out STD_LOGIC; -- write through
 				CACHED_IO_O     : out STD_LOGIC; -- en cached IO
+				DC_SYNC_I       : in  STD_LOGIC; -- d-cache is sync
 
 -- ###############################################################################################
 -- ##           System Control                                                                  ##
 -- ###############################################################################################
 
 				IO_PORT_O       : out STD_LOGIC_VECTOR(15 downto 0); -- direct output
-				IO_PORT_I       : in  STD_LOGIC_VECTOR(15 downto 0)  -- direct input
+				IO_PORT_I       : in  STD_LOGIC_VECTOR(15 downto 0); -- direct input
+				ADR_FEEDBACK_I  : in  STD_LOGIC_VECTOR(31 downto 0)  -- adr feedback for exception handling
 
 			);
 end MC_SYS;
@@ -210,7 +212,7 @@ begin
 	-- ---------------------------------------------------------------------------------------------------
 
 		-- Pending external interrupt request to stop instruction fetch until pipeline is empty --
-		PEND_XI_REQ_O <= (EXT_INT_REQ_SYNC(0) or EXT_INT_REQ_SYNC(1) or EXT_INT_REQ_SYNC(2) or EXT_INT_REQ_SYNC(3));
+		PEND_XI_REQ_O <= EXT_INT_REQ_SYNC(0) or EXT_INT_REQ_SYNC(1) or EXT_INT_REQ_SYNC(2) or EXT_INT_REQ_SYNC(3);
 
 		-- FIQ Trap taken --
 		FIQ_TAKEN_NXT <= EXT_INT_REQ_SYNC(0) and EMPTY_PIPE_I and NO_BR_PIPE;
@@ -482,7 +484,7 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0301"; -- core update date
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0308"; -- core update date
 					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
 					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length
@@ -495,6 +497,7 @@ begin
 						CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_FDC) <= '0'; -- auto-reset flush d-cache
 						CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CDC) <= '0'; -- auto-reset clear d-cache
 						CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CIC) <= '0'; -- auto-reset clear i-cache
+						CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_DCS) <= DC_SYNC_I; -- d-cache sync
 					end if;
 
 					-- Cache Statistic Register ---------------------------------------------------
@@ -508,6 +511,9 @@ begin
 					elsif (CP_REG_FILE(CP_CSTAT)(31 downto 16) /= x"FFFF") and (DC_HIT_I = '1') and (G_HALT_I = '0')  then
 						CP_REG_FILE(CP_CSTAT)(31 downto 16) <= Std_Logic_Vector(unsigned(CP_REG_FILE(CP_CSTAT)(31 downto 16)) + 1);
 					end if;
+
+					-- Bus Unit Address Feedback --------------------------------------------------
+					CP_REG_FILE(CP_BUS_AFB) <= ADR_FEEDBACK_I;
 
 					-- Internal LFSR:: Polynomial Register ----------------------------------------
 					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_LFSR_POLY) then

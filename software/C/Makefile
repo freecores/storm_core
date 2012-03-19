@@ -257,7 +257,7 @@ ALL_ASFLAGS = -mcpu=$(MCU) $(THUMB_IW) -I. -x assembler-with-cpp $(ASFLAGS)
 # Default target.
 all: begin gccversion sizebefore build sizeafter finished cmp end
 
-build: elf hex lss sym
+build: elf hex lss 
 
 elf: $(TARGET).elf
 hex: $(TARGET).hex
@@ -268,7 +268,7 @@ sym: $(TARGET).sym
 cmp:
 	@echo
 	@echo $(MSG_EXTRACT)
-	extractor.exe $(TARGET).elf
+	storm_extractor.exe $(TARGET).elf
 	@echo
 
 
@@ -401,8 +401,8 @@ clean_list :
 	$(REMOVE) $(TARGET).lnk
 	$(REMOVE) $(TARGET).lss
 	$(REMOVE) a.out
-	$(REMOVE) mnemonic.txt
-	$(REMOVE) mnemonic.dat
+	$(REMOVE) storm_program.txt
+	$(REMOVE) storm_program.dat
 	$(REMOVE) $(COBJ)
 	$(REMOVE) $(CPPOBJ)
 	$(REMOVE) $(AOBJ)

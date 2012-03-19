@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #              Machine Control System                 #
 -- # *************************************************** #
--- # Last modified: 08.03.2012                           #
+-- # Last modified: 17.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -81,6 +81,7 @@ entity MC_SYS is
 				IC_MISS_I       : in  STD_LOGIC; -- i-cache miss access
 				C_WTHRU_O       : out STD_LOGIC; -- write through
 				CACHED_IO_O     : out STD_LOGIC; -- en cached IO
+				PRTCT_IO_O      : out STD_LOGIC; -- protected IO
 				DC_SYNC_I       : in  STD_LOGIC; -- d-cache is sync
 
 -- ###############################################################################################
@@ -484,10 +485,11 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0308"; -- core update date
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC0311"; -- core update date
 					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
 					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length
+					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_PIO) <= '1'; -- IO area is protected
 				else
 
 					-- System Control Register 0 --------------------------------------------------
@@ -549,6 +551,7 @@ begin
 		DC_CLEAR_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CDC);
 		DC_FRESH_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_DAR);
 		CACHED_IO_O <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CIO);
+		PRTCT_IO_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_PIO);
 		IC_FRESH_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_IAR);
 		IC_CLEAR_O  <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CIC);
 		C_WTHRU_O   <= CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_CWT);
@@ -594,10 +597,11 @@ begin
 					when System32_MODE     => MCR_DATA_O <= SMSR_SYS;
 					when others            => MCR_DATA_O <= (others => '0');
 				end case;
-			elsif (mrd_cp_v = '1') then
-				MCR_DATA_O <= CP_REG_FILE(to_integer(unsigned(CTRL_I(CTRL_CP_REG_3 downto CTRL_CP_REG_0))));
+--			elsif (mrd_cp_v = '1') then
 			else
-				MCR_DATA_O <= (others => '0');
+				MCR_DATA_O <= CP_REG_FILE(to_integer(unsigned(CTRL_I(CTRL_CP_REG_3 downto CTRL_CP_REG_0))));
+--			else
+--				MCR_DATA_O <= (others => '0');
 			end if;
 		end process MREG_READ_ACCESS;
 

@@ -4,13 +4,13 @@
 /*                                                                     */
 /***********************************************************************/
 ENTRY(_start)
-STACK_SIZE = 0x400;
+STACK_SIZE = 0x800;
 
 /* Memory Definitions */
 MEMORY
 {
   ROM (rx)  : ORIGIN = 0xFFFFF000, LENGTH = 0x00000200
-  RAM (rwx) : ORIGIN = 0x00000000, LENGTH = 0x00000800
+  RAM (rwx) : ORIGIN = 0x00000000, LENGTH = 0x00001000
 }
 
 /* Section Definitions */

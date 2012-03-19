@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #           ARM-Native OPCODE Decoding Unit           #
 -- # *************************************************** #
--- # Last modified: 25.01.2012                           #
+-- # Last modified: 18.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -114,7 +114,7 @@ begin
 					      (INSTR_REG(25 downto 4) = "0100101111111111110001") then
 					-- MULL/MLAL/BX
 					----------------------------------------------------------------------------------
-						DEC_CTRL(CTRL_UND) <= '1'; -- not implemented
+						DEC_CTRL(CTRL_UND) <= '1'; -- not supported/implemented
 
 					elsif (INSTR_REG(25) = '0') and (INSTR_REG(7) = '1') and (INSTR_REG(4) = '1') then
 					-- Halfword / Signed Data Transfer
@@ -664,7 +664,7 @@ begin
 
 
 
-				when others => -- COPROCESSOR INTERFACE / SOFTWARE INTERRUPT
+				when others => -- COPROCESSOR REGISTER TRANSFER / SOFTWARE INTERRUPT
 				-- ============================================================================================
 					DEC_CTRL(CTRL_SWI) <= INSTR_REG(25) and INSTR_REG(24); -- SOFTWARE INTERRUPT
 
@@ -685,7 +685,7 @@ begin
 						end if;
 
 
-					else -- COPROCESSOR OPERATION / MEMORY TRANSFER
+					else -- COPROCESSOR OPERATION / COPROCESSOR MEMORY TRANSFER
 					----------------------------------------------------------------------------------
 						DEC_CTRL(CTRL_UND) <= '1'; -- undefined instruction, since not implemented
 

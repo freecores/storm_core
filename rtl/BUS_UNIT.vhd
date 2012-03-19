@@ -4,12 +4,10 @@
 -- #             STORM PROCESSOR BUS UNIT               #
 -- # -------------------------------------------------- #
 -- # This bus unit connects the data and instruction    #
--- # of the STORM CORE processor to a Wishbone          #
--- # compatible 32-bit bus system.                      #
--- # Note: I-Cache is read-only for the processor and   #
--- # write-only for the bus unit.                       #
+-- # cache of the STORM Core processor to a pipelined   #
+-- # Wishbone compatible 32-bit bus system.             #
 -- # ************************************************** #
--- # Last modified: 08.03.2012                          #
+-- # Last modified: 17.03.2012                          #
 -- ######################################################
 
 library IEEE;
@@ -49,6 +47,7 @@ entity BUS_UNIT is
 				I_ABORT_O          : out STD_LOGIC;                     -- bus error during instruction transfer
 				C_BUS_CYCC_I       : in  STD_LOGIC_VECTOR(15 downto 0); -- max bus cycle length
 				CACHED_IO_I        : in  STD_LOGIC;                     -- enable cached IO
+				PROTECTED_IO_I     : in  STD_LOGIC;                     -- protected IO
 				ADR_FEEDBACK_O     : out STD_LOGIC_VECTOR(31 downto 0); -- address feedback for exception handling
 
 -- ################################################################################################################
@@ -131,8 +130,12 @@ architecture Structure of BUS_UNIT is
 	signal WB_DATA_BUF                   : STD_LOGIC_VECTOR(31 downto 0);
 	signal WB_ACK_BUF                    : STD_LOGIC;
 	signal WB_ERR_BUF                    : STD_LOGIC;
-	signal VA_CYC_BUF,   VA_CYC_BUF_NXT  : STD_LOGIC;
-	signal WE_FLAG,      WE_FLAG_NXT     : STD_LOGIC;
+	signal WB_DATA_FF,   WB_DATA_FF_NXT  : STD_LOGIC_VECTOR(31 downto 0);
+	signal WB_CTI_O_NXT                  : STD_LOGIC_VECTOR(02 downto 0);
+	signal WB_TGC_O_NXT                  : STD_LOGIC_VECTOR(06 downto 0);
+	signal WB_STB_O_NXT                  : STD_LOGIC;
+	signal WB_CYC_O_NXT                  : STD_LOGIC;
+	signal WB_WE_O_NXT                   : STD_LOGIC;
 
 	-- Access System --
 	signal IO_ACCESS                     : STD_LOGIC;
@@ -140,6 +143,8 @@ architecture Structure of BUS_UNIT is
 	-- Local Signals --
 	signal FREEZE_FLAG,  FREEZE_FLAG_NXT : STD_LOGIC; -- freeze flag
 	signal FREEZE_DIS,   FREEZE_DIS_NXT  : STD_LOGIC; -- freeze disable
+	signal BIT_BUF,      BIT_BUF_NXT     : STD_LOGIC; -- GP bit buffer
+	signal WORD_BUF,     WORD_BUF_NXT    : STD_LOGIC_VECTOR(31 downto 0); -- GP word buffer
 
 	-- Timeout System --
 	signal TIMEOUT_CNT,  TIMEOUT_CNT_NXT : STD_LOGIC_VECTOR(15 downto 0);
@@ -177,13 +182,12 @@ begin
 		--- I-Cache ---
 		IC_DATA_O   <= WB_DATA_BUF;
 		IC_ADR_O    <= IC_ADR_BUF;
-		IC_WE_O     <= '1'; -- processor cannot change i-cache, no readback necessary
+		IC_WE_O     <= '1'; -- storm cannot change i-cache, no readback necessary
 
 		--- Wishbone Bus ---
-		WB_SEL_O    <= "1111"; -- cache entry = word
-		WB_ADR_O    <= WB_ADR_BUF;
-		WB_DATA_O   <= x"00000000" when (ARB_STATE = IDLE) else DC_DATA_I;
-		WB_WE_O     <= WE_FLAG;
+		WB_SEL_O       <= "1111"; -- cache entry = 32-bit word
+		WB_DATA_FF_NXT <= x"00000000"    when (ARB_STATE = IDLE) else DC_DATA_I; -- reduce switching losses...
+		WB_DATA_O      <= WB_DATA_FF_NXT when (ARB_STATE = UPLOAD_D_PAGE) else WB_DATA_FF;
 
 		--- IO Access ---
 		IO_ACCESS <= '1' when (DC_P_ADR_I >= IO_UC_BEGIN) and (DC_P_ADR_I <= IO_UC_END) and (CACHED_IO_I = '0') else '0';
@@ -206,8 +210,6 @@ begin
 					WB_ACK_BUF   <= '0';
 					WB_ACK_CNT   <= (others => '0');
 					WB_ERR_BUF   <= '0';
-					WE_FLAG      <= '0';
-					VA_CYC_BUF   <= '0';
 					IC_ADR_BUF   <= (others => '0');
 					DC_ADR_BUF   <= (others => '0');
 					PAGE_BUF     <= (others => '0');
@@ -215,20 +217,37 @@ begin
 					BASE_BUF     <= (others => '0');
 					DC_P_ADR_BUF <= (others => '0');
 					IC_P_ADR_BUF <= (others => '0');
+					WB_DATA_FF   <= (others => '0');
+					WB_ADR_O    <= (others => '0');
+					WB_CTI_O     <= (others => '0');
+					WB_TGC_O     <= (others => '0');
+					WB_STB_O     <= '0';
+					WB_CYC_O     <= '0';
+					WB_WE_O      <= '0';
+					BIT_BUF      <= '0';
+					WORD_BUF     <= (others => '0');
 				else
 					-- Arbiter CTRL --
 					ARB_STATE    <= ARB_STATE_NXT;
+					BIT_BUF      <= BIT_BUF_NXT;
+					WORD_BUF     <= WORD_BUF_NXT;
 					TIMEOUT_CNT  <= TIMEOUT_CNT_NXT;
 					DC_P_ADR_BUF <= DC_P_ADR_I;
 					IC_P_ADR_BUF <= IC_P_ADR_I;
-					WE_FLAG      <= WE_FLAG_NXT;
+					WB_DATA_FF   <= WB_DATA_FF_NXT;
+					WB_ADR_O     <= WB_ADR_BUF;
+					WB_CTI_O     <= WB_CTI_O_NXT;
+					WB_TGC_O     <= WB_TGC_O_NXT;
+					WB_STB_O     <= WB_STB_O_NXT;
+					WB_CYC_O     <= WB_CYC_O_NXT;
+					WB_WE_O      <= WB_WE_O_NXT;
+					-- Bus interface --
 					if (WB_HALT_I = '0') then
 						-- Wishbone Sync --
 						WB_DATA_BUF <= WB_DATA_I;
 						WB_ACK_BUF  <= WB_ACK_I;
 						WB_ACK_CNT  <= WB_ACK_CNT_NXT;
 						WB_ERR_BUF  <= WB_ERR_I;
-						VA_CYC_BUF  <= VA_CYC_BUF_NXT;
 						-- Address Buffer --
 						IC_ADR_BUF  <= IC_ADR_BUF_NXT;
 						DC_ADR_BUF  <= DC_ADR_BUF_NXT;
@@ -244,13 +263,13 @@ begin
 
 	-- Arbiter State Machine (Async) --------------------------------------------------------------------------
 	-- -----------------------------------------------------------------------------------------------------------
-		ARBITER_ASYNC: process(ARB_STATE,  STORM_MODE_I, FREEZE_FLAG, BASE_BUF,   TIMEOUT_CNT, IO_ACCESS,  WE_FLAG,
-		                       DC_ADR_BUF, DC_P_ADR_BUF, DC_P_ADR_I,  PAGE_BUF,   DC_D_SEL_I,  DC_A_SEL_I, DC_DIRTY_I, DC_MISS_I,  DC_P_WE_I, DC_P_CS_I,
+		ARBITER_ASYNC: process(ARB_STATE,  STORM_MODE_I, FREEZE_FLAG, BASE_BUF,   TIMEOUT_CNT, IO_ACCESS,  BIT_BUF,    WORD_BUF,  PROTECTED_IO_I,
+		                       DC_ADR_BUF, DC_P_ADR_BUF, DC_P_ADR_I,  PAGE_BUF,   DC_D_SEL_I,  DC_A_SEL_I, DC_DIRTY_I, DC_MISS_I, DC_P_WE_I,      DC_P_CS_I,
 		                       IC_ADR_BUF, IC_P_ADR_BUF, IC_MISS_I,
-		                       WB_ADR_BUF, WB_ACK_BUF,   WB_ACK_I,    WB_ACK_CNT, WB_ERR_BUF,  VA_CYC_BUF, C_BUS_CYCC_I)
+		                       WB_ADR_BUF, WB_ACK_BUF,   WB_ACK_I,    WB_ACK_CNT, WB_ERR_BUF,  C_BUS_CYCC_I)
 			variable IF_BASE_ADR_V, DF_BASE_ADR_V : STD_LOGIC_VECTOR(31 downto 0);
 		begin
-			--- Base Address Word Alignment ---
+			--- Base Address Alignment ---
 			IF_BASE_ADR_V := (others => '0');
 			IF_BASE_ADR_V(31 downto LOG2_I_CACHE_PAGE_SIZE+2) := IC_P_ADR_BUF(31 downto LOG2_I_CACHE_PAGE_SIZE+2);
 			DF_BASE_ADR_V := (others => '0');
@@ -267,15 +286,16 @@ begin
 			FREEZE_FLAG_NXT <= FREEZE_FLAG;
 			FREEZE_DIS_NXT  <= '0';
 			BASE_BUF_NXT    <= BASE_BUF;
-			VA_CYC_BUF_NXT  <= '0';
+			BIT_BUF_NXT     <= BIT_BUF;
+			WORD_BUF_NXT    <= WORD_BUF;
 			TIMEOUT_CNT_NXT <= (others => '0');
-			WE_FLAG_NXT     <= WE_FLAG;
 
 			--- Wishbone Bus Defaults ---
-			WB_CTI_O        <= WB_CLASSIC_CYC;
-			WB_TGC_O        <= "00" & STORM_MODE_I;
-			WB_CYC_O        <= '0';
-			WB_STB_O        <= '0';
+			WB_CTI_O_NXT    <= WB_CLASSIC_CYC;
+			WB_TGC_O_NXT    <= "00" & STORM_MODE_I;
+			WB_CYC_O_NXT    <= '0';
+			WB_STB_O_NXT    <= '0';
+			WB_WE_O_NXT     <= '0';
 
 			--- Wishbone ACK Counter ---
 			if (WB_ACK_I = '1') then
@@ -302,114 +322,130 @@ begin
 					IC_ADR_BUF_NXT <= IF_BASE_ADR_V;
 					DC_ADR_BUF_NXT <= DF_BASE_ADR_V;
 					WB_ACK_CNT_NXT <= (others => '0');
+					PAGE_BUF_NXT   <= (others => '1'); -- last entry
 					if (IC_MISS_I = '1') then -- i-cache miss -> reload cache page
 						ARB_STATE_NXT   <= DOWNLOAD_I_PAGE;
 						FREEZE_FLAG_NXT <= '1';
 						WB_ADR_BUF_NXT  <= IF_BASE_ADR_V;
 						BASE_BUF_NXT    <= IF_BASE_ADR_V;
-						WE_FLAG_NXT     <= '0'; -- bus read
 					elsif (DC_MISS_I = '1') then  -- d-cache miss -> reload cache page
 						ARB_STATE_NXT   <= DOWNLOAD_D_PAGE;
 						FREEZE_FLAG_NXT <= '1';
 						WB_ADR_BUF_NXT  <= DF_BASE_ADR_V;
 						BASE_BUF_NXT    <= DF_BASE_ADR_V;
-						WE_FLAG_NXT     <= '0'; -- bus read
 					elsif (IO_ACCESS = '1') and (DC_P_CS_I = '1') then -- IO access
-						ARB_STATE_NXT   <= IO_REQUEST;
-						FREEZE_FLAG_NXT <= '1';
-						WB_ADR_BUF_NXT  <= DC_P_ADR_I;
-						WE_FLAG_NXT     <= DC_P_WE_I; -- bus read/write
+						if (STORM_MODE_I = User32_MODE) and (PROTECTED_IO_I = '1') then -- unauthorized?
+							D_ABORT_O <= '1'; -- abort interrupt
+						else
+							ARB_STATE_NXT   <= IO_REQUEST;
+							FREEZE_FLAG_NXT <= '1';
+							WB_ADR_BUF_NXT  <= DC_P_ADR_I;
+							BIT_BUF_NXT     <= DC_P_WE_I; -- bus read/write
+						end if;
 					elsif (DC_DIRTY_I = '1') then -- d-cache modification -> copy page to main memory
 						ARB_STATE_NXT   <= ASSIGN_D_PAGE;
-						PAGE_BUF_NXT    <= (others => '1'); -- last entry
-						WE_FLAG_NXT     <= '1'; -- bus write
 						FREEZE_FLAG_NXT <= '1';
 					end if;
 
 				when DOWNLOAD_I_PAGE => -- get new i-cache page
 				-------------------------------------------------------------------------------
-					WB_TGC_O(5)  <= '1'; -- indicate instruction transfer
-					WB_TGC_O(6)  <= '0'; -- mem access
-					WB_CTI_O     <= WB_INC_BST_CYC;
-					WB_CYC_O     <= '1'; -- valid cycle
-					WB_STB_O     <= '1'; -- valid transfer
+					WB_TGC_O_NXT(5) <= '1'; -- indicate instruction transfer
+					WB_TGC_O_NXT(6) <= '0'; -- mem access
+					WB_CTI_O_NXT    <= WB_INC_BST_CYC;
+					WB_CYC_O_NXT    <= '1'; -- valid cycle
+					WB_STB_O_NXT    <= '1'; -- valid transfer
+					WB_WE_O_NXT     <= '0'; -- bus read
 					TIMEOUT_CNT_NXT <= Std_Logic_Vector(unsigned(TIMEOUT_CNT) + 1);
-					if (IC_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + I_CACHE_PAGE_SIZE*4)) and
-					   (to_integer(unsigned(WB_ACK_CNT)) >= I_CACHE_PAGE_SIZE) then --((WB_ACK_BUF = '1') then -- cycle complete?
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (IC_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + (I_CACHE_PAGE_SIZE-1)*4)) and
+					   (to_integer(unsigned(WB_ACK_CNT)) >= I_CACHE_PAGE_SIZE) then
+						WB_CTI_O_NXT    <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						IC_MSS_ACK_O    <= '1'; -- ack miss!
-					elsif (WB_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) - 4 + I_CACHE_PAGE_SIZE*4)) then
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
+					elsif (WB_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + (I_CACHE_PAGE_SIZE-1)*4)) then
 						WB_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(WB_ADR_BUF) + 4); -- inc counter
 					end if;
-					if (IC_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) + I_CACHE_PAGE_SIZE*4)) and
+					if (IC_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + I_CACHE_PAGE_SIZE*4)) and
 					   (WB_ACK_BUF = '1') then
 						IC_CS_O <= '1';
 						IC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(IC_ADR_BUF) + 4); -- inc counter
 					end if;
 					-- Timeout or abnormal cycle termination --
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (TIMEOUT_CNT > C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
+						WB_CTI_O_NXT    <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						IC_MSS_ACK_O    <= '1'; -- ack miss!
-						I_ABORT_O       <= '1';
+						I_ABORT_O       <= '1'; -- abort interrupt
 						FREEZE_DIS_NXT  <= '1';
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
 					end if;
 
 				when DOWNLOAD_D_PAGE => -- get new d-cache page
 				-------------------------------------------------------------------------------
-					WB_TGC_O(5)  <= '0'; -- indicate data transfer
-					WB_TGC_O(6)  <= '0'; -- mem access
-					WB_CTI_O     <= WB_INC_BST_CYC;
-					WB_CYC_O     <= '1'; -- valid cycle
-					WB_STB_O     <= '1'; -- valid transfer
-					DC_WE_O      <= '1'; -- cache write access
+					WB_TGC_O_NXT(5) <= '0'; -- indicate data transfer
+					WB_TGC_O_NXT(6) <= '0'; -- mem access
+					WB_CTI_O_NXT    <= WB_INC_BST_CYC;
+					WB_CYC_O_NXT    <= '1'; -- valid cycle
+					WB_STB_O_NXT    <= '1'; -- valid transfer
+					DC_WE_O         <= '1'; -- cache write access
+					WB_WE_O_NXT     <= '0'; -- bus read
 					TIMEOUT_CNT_NXT <= Std_Logic_Vector(unsigned(TIMEOUT_CNT) + 1);
-					if (DC_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + D_CACHE_PAGE_SIZE*4)) and
-					   (to_integer(unsigned(WB_ACK_CNT)) >= D_CACHE_PAGE_SIZE) then --(WB_ACK_BUF = '1') then -- cycle complete?
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (DC_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) and
+					   (to_integer(unsigned(WB_ACK_CNT)) >= D_CACHE_PAGE_SIZE) then
+						WB_CTI_O_NXT    <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						DC_MSS_ACK_O    <= '1'; -- ack miss!
-					elsif (WB_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) - 4 + D_CACHE_PAGE_SIZE*4)) then
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
+					elsif (WB_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) then
 						WB_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(WB_ADR_BUF) + 4); -- inc counter
 					end if;
-					if (DC_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) + D_CACHE_PAGE_SIZE*4)) and
+					if (DC_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + D_CACHE_PAGE_SIZE*4)) and
 					   (WB_ACK_BUF = '1') then
 						DC_CS_O <= '1';
 						DC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(DC_ADR_BUF) + 4); -- inc counter
 					end if;
 					-- Timeout or abnormal cycle termination --
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (TIMEOUT_CNT > C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
+						WB_CTI_O_NXT    <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						DC_MSS_ACK_O    <= '1'; -- ack miss!
-						D_ABORT_O       <= '1';
+						D_ABORT_O       <= '1'; -- abort interrupt
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
 					end if;
 
 				when IO_REQUEST => -- read/write IO location (single 32-bit word)
 				-------------------------------------------------------------------------------
-					WB_TGC_O(5)     <= '0'; -- indicate data transfer
-					WB_TGC_O(6)     <= '1'; -- io access
-					WB_CTI_O        <= WB_CLASSIC_CYC;
-					WB_CYC_O        <= '1'; -- valid cycle
-					WB_STB_O        <= '1'; -- valid transfer
+					WB_TGC_O_NXT(5) <= '0'; -- indicate data transfer
+					WB_TGC_O_NXT(6) <= '1'; -- io access
+					WB_CTI_O_NXT    <= WB_CLASSIC_CYC;
+					WB_CYC_O_NXT    <= '1'; -- valid cycle
+					WB_STB_O_NXT    <= '1'; -- valid transfer
+					WB_WE_O_NXT     <= BIT_BUF; -- bus read/write
 					DC_WE_O         <= '1'; -- dummy cache write access
 					DC_ADR_BUF_NXT  <= WB_ADR_BUF;
 					TIMEOUT_CNT_NXT <= Std_Logic_Vector(unsigned(TIMEOUT_CNT) + 1);	
-					if (to_integer(unsigned(WB_ACK_CNT)) >= 1) then --(WB_ACK_BUF = '1') then -- cycle complete?
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (to_integer(unsigned(WB_ACK_CNT)) >= 1) then
+						WB_CTI_O_NXT    <= WB_CLASSIC_CYC;
 						ARB_STATE_NXT   <= END_TRANSFER;
 						DC_DRT_ACK_O    <= '1'; -- ack of pseudo dirty signal
 						DC_MSS_ACK_O    <= '1'; -- ack of pseudo miss signal
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
 					end if;
 					-- Timeout or abnormal cycle termination --
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
-						WB_CTI_O       <= WB_BST_END_CYC;
+					if (TIMEOUT_CNT > C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
+						WB_CTI_O_NXT   <= WB_CLASSIC_CYC;
 						ARB_STATE_NXT  <= END_TRANSFER;
 						DC_DRT_ACK_O   <= '1'; -- ack of pseudo dirty signal
 						DC_MSS_ACK_O   <= '1'; -- ack of pseudo miss signal
-						D_ABORT_O      <= '1';
+						D_ABORT_O      <= '1'; -- abort interrupt
 						FREEZE_DIS_NXT <= '1';
+						WB_CYC_O_NXT   <= '0'; -- terminate cycle
+						WB_STB_O_NXT   <= '0'; -- terminate cycle
 					end if;
 
 				when ASSIGN_D_PAGE => -- find dirty pages in cache
@@ -417,56 +453,57 @@ begin
 					if (DC_D_SEL_I = '1') then -- entry is dirty
 						DC_ADR_BUF_NXT <= DC_A_SEL_I;
 						WB_ADR_BUF_NXT <= DC_A_SEL_I;
+						WORD_BUF_NXT   <= DC_A_SEL_I;
 						BASE_BUF_NXT   <= DC_A_SEL_I;
 						ARB_STATE_NXT  <= UPLOAD_D_PAGE;
 					elsif (to_integer(unsigned(PAGE_BUF)) = 0) then -- all pages analyzed
 						ARB_STATE_NXT  <= END_TRANSFER;
 					else
-						PAGE_BUF_NXT <= Std_Logic_Vector(unsigned(PAGE_BUF)-1);
+						PAGE_BUF_NXT   <= Std_Logic_Vector(unsigned(PAGE_BUF)-1);
 					end if;
 
 				when UPLOAD_D_PAGE => -- copy d-cache page to main memory
 				-------------------------------------------------------------------------------
-					WB_TGC_O(5) <= '0'; -- indicate data transfer
-					WB_TGC_O(6) <= '0'; -- mem access
-					WB_CTI_O    <= WB_INC_BST_CYC;
-					WB_CYC_O    <= VA_CYC_BUF; -- valid cycle, delayed one cycle
-					WB_STB_O    <= VA_CYC_BUF; -- valid transfer, delayed one cycle
-					DC_CS_O     <= '1'; -- enable data read back
-					DC_WE_O     <= '0'; -- cache read access
+					WB_TGC_O_NXT(5) <= '0'; -- indicate data transfer
+					WB_TGC_O_NXT(6) <= '0'; -- mem access
+					WB_CTI_O_NXT    <= WB_INC_BST_CYC;
+					WB_CYC_O_NXT    <= '1'; -- valid cycle, delayed one cycle
+					WB_STB_O_NXT    <= '1'; -- valid transfer, delayed one cycle
+					WB_WE_O_NXT     <= '1'; -- bus write
+					DC_CS_O         <= '1'; -- enable data read back
+					DC_WE_O         <= '0'; -- cache read access
 					TIMEOUT_CNT_NXT <= Std_Logic_Vector(unsigned(TIMEOUT_CNT) + 1);
-					WB_ADR_BUF_NXT  <= DC_ADR_BUF;
-					VA_CYC_BUF_NXT  <= '1';
-					if (WB_ADR_BUF = Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4))  then
-						if (to_integer(unsigned(WB_ACK_CNT)) >= D_CACHE_PAGE_SIZE) then --(WB_ACK_BUF = '1') then -- cycle complete?
+					if (WB_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4))  then
+						if (to_integer(unsigned(WB_ACK_CNT)) >= D_CACHE_PAGE_SIZE) then
 							DC_DRT_ACK_O   <= '1'; -- ack of dirty signal
-							------- if still dirty
-							WB_CTI_O       <= WB_BST_END_CYC;
+							WB_CTI_O_NXT   <= WB_BST_END_CYC;
 							ARB_STATE_NXT  <= END_TRANSFER;
-							VA_CYC_BUF_NXT <= '0';
+							WB_CYC_O_NXT   <= '0';
+							WB_STB_O_NXT   <= '0';
 						end if;
 					end if;
-					if (DC_ADR_BUF /= Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) then
-						DC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(DC_ADR_BUF) + 4); -- inc pointer
+					if (DC_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) then
+						DC_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(DC_ADR_BUF) + 4); -- inc mem pointer
+						WB_ADR_BUF_NXT <= Std_Logic_Vector(unsigned(WB_ADR_BUF) + 4); -- inc wb pointer
 					end if;
 					-- Timeout or abnormal cycle termination --
-					if (TIMEOUT_CNT >= C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
-						WB_CTI_O        <= WB_BST_END_CYC;
+					if (TIMEOUT_CNT > C_BUS_CYCC_I) or (WB_ERR_BUF = '1') then
+						WB_CTI_O_NXT    <= WB_BST_END_CYC;
 						ARB_STATE_NXT   <= ASSIGN_D_PAGE;
 						DC_DRT_ACK_O    <= '1'; -- ack dirty signal
-						D_ABORT_O       <= '1';
+						D_ABORT_O       <= '1'; -- abort interrupt
 						FREEZE_DIS_NXT  <= '1';
+						WB_CYC_O_NXT    <= '0'; -- terminate cycle
+						WB_STB_O_NXT    <= '0'; -- terminate cycle
 					end if;
 
-				when END_TRANSFER => -- terminate cycle
+				when END_TRANSFER => -- break between cycles
 				-------------------------------------------------------------------------------
-					if (DC_DIRTY_I = '1') then -- another dirty page in cache
-						ARB_STATE_NXT   <= UPLOAD_D_PAGE;
-					else -- finish transfer
-						FREEZE_FLAG_NXT <= '0';
-						FREEZE_DIS_NXT  <= '0';
-						ARB_STATE_NXT   <= IDLE;
-					end if;
+					WB_ACK_CNT_NXT  <= (others => '0');
+					PAGE_BUF_NXT    <= (others => '1'); -- last entry
+					FREEZE_FLAG_NXT <= '0';
+					FREEZE_DIS_NXT  <= '0';
+					ARB_STATE_NXT   <= IDLE;
 
 			end case;
 		end process ARBITER_ASYNC;

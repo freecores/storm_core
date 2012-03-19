@@ -18,9 +18,9 @@ architecture Structure of STORM_core_TB is
 	-- Address Map --------------------------------------------------------------------
 	-- -----------------------------------------------------------------------------------
 		constant INT_MEM_BASE_C  : STD_LOGIC_VECTOR(31 downto 0) := x"00000000";
-		constant INT_MEM_SIZE_C  : natural := 1024; -- bytes
+		constant INT_MEM_SIZE_C  : natural := 1*1024; -- bytes
 		constant GP_IO_BASE_C    : STD_LOGIC_VECTOR(31 downto 0) := x"FFFFE020";
-		constant GP_IO_SIZE_C    : natural := 8; -- bytes
+		constant GP_IO_SIZE_C    : natural := 2*4; -- two 4-byte registers = 8 bytes
 
 
 	-- Architecture Constants ---------------------------------------------------------
@@ -29,9 +29,9 @@ architecture Structure of STORM_core_TB is
 		constant IO_BEGIN_C           : STD_LOGIC_VECTOR(31 downto 0) :=  x"FFFFE020"; -- first addr of IO area
 		constant IO_END_C             : STD_LOGIC_VECTOR(31 downto 0) :=  x"FFFFE024"; -- last addr of IO area
 		constant I_CACHE_PAGES_C      : natural := 4;  -- number of pages in I cache
-		constant I_CACHE_PAGE_SIZE_C  : natural := 32; -- page size in I cache
+		constant I_CACHE_PAGE_SIZE_C  : natural := 16; -- page size in I cache
 		constant D_CACHE_PAGES_C      : natural := 4;  -- number of pages in D cache
-		constant D_CACHE_PAGE_SIZE_C  : natural := 2;  -- page size in D cache
+		constant D_CACHE_PAGE_SIZE_C  : natural := 4;  -- page size in D cache
 
 
 	-- Global Signals -----------------------------------------------------------------
@@ -253,57 +253,59 @@ begin
 -- ###  WISHBONE FABRIC                                                                                                          ###
 -- #################################################################################################################################
 
+	-- Valid Transfer Signal -------------------------------------------------------------------------------
+	-- --------------------------------------------------------------------------------------------------------
+		INT_MEM_STB_I    <= CORE_WB_STB_O when ((CORE_WB_ADR_O >= INT_MEM_BASE_C) and (CORE_WB_ADR_O < Std_logic_Vector(unsigned(INT_MEM_BASE_C) + INT_MEM_SIZE_C))) else '0';
+		GP_IO_CTRL_STB_I <= CORE_WB_STB_O when ((CORE_WB_ADR_O >= GP_IO_BASE_C)   and (CORE_WB_ADR_O < Std_logic_Vector(unsigned(GP_IO_BASE_C)   + GP_IO_SIZE_C)))   else '0';
+--		DUMMY0_STB_I     <= CORE_WB_STB_O when ((CORE_WB_ADR_O >= DUMMY0_BASE_C)  and (CORE_WB_ADR_O < Std_logic_Vector(unsigned(DUMMY0_BASE_C)  + DUMMY0_SIZE_C)))  else '0';
+--		DUMMY1_STB_I     <= CORE_WB_STB_O when ((CORE_WB_ADR_O >= DUMMY1_BASE_C)  and (CORE_WB_ADR_O < Std_logic_Vector(unsigned(DUMMY1_BASE_C)  + DUMMY1_SIZE_C)))  else '0';
+
+
 	-- Read-Back Data Selector -----------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
 		CORE_WB_DATA_I <=
-			INT_MEM_DATA_O    when (CORE_WB_ADR_O(31 downto log2(INT_MEM_SIZE_C)) = INT_MEM_BASE_C(31 downto log2(INT_MEM_SIZE_C))) else
-			GP_IO_CTRL_DATA_O when (CORE_WB_ADR_O(31 downto log2(GP_IO_SIZE_C))   = GP_IO_BASE_C(  31 downto log2(GP_IO_SIZE_C)))   else
---			DUMMY0_DATA_O     when (CORE_WB_ADR_O(31 downto log2(DUMMY0_SIZE_C))  = DUMMY0_BASE_C( 31 downto log2(DUMMY0_SIZE_C)))  else
---			DUMMY1_DATA_O     when (CORE_WB_ADR_O(31 downto log2(DUMMY1_SIZE_C))  = DUMMY1_BASE_C( 31 downto log2(DUMMY1_SIZE_C)))  else
+			INT_MEM_DATA_O    when (INT_MEM_STB_I    = '1') else
+			GP_IO_CTRL_DATA_O when (GP_IO_CTRL_STB_I = '1') else
+--			DUMMY0_DATA_O     when (DUMMY0_STB_I     = '1') else
+--			DUMMY1_DATA_O     when (DUMMY1_STB_I     = '1') else
 			x"00000000";
 
+
 	-- Use this style of data read-back terminal for pipelined Wishbone systems.
-	-- You have to ensure, that all not selected IO devices set their data output to 0.
---		CORE_WB_DATA_I <= INT_MEM_DATA_O    or
---		                  GP_IO_CTRL_DATA_O or
---			              DUMMY0_DATA_O     or
---			              DUMMY1_DATA_O     or
---			              x"00000000";
+	-- You have to ensure, that all not-selected IO devices set their data output to 0.
+	-- => Output and-gates controlled by the device's STB_I signal.
+--		CORE_WB_DATA_I <= INT_MEM_DATA_O     or
+--		                  GP_IO_CTRL_DATA_O  or
+--			              DUMMY0_DATA_O      or
+--			              DUMMY1_DATA_O      or
+--		                  '0';
 
 
 	-- Acknowledge Terminal --------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		CORE_WB_ACK_I <= INT_MEM_ACK_O    or
-		                 GP_IO_CTRL_ACK_O or
---		                 DUMMY0_ACK_O     or
---		                 DUMMY1_ACK_O     or
-						 '0';
+		CORE_WB_ACK_I <=  INT_MEM_ACK_O      or
+		                  GP_IO_CTRL_ACK_O   or
+--		                  DUMMY0_ACK_O       or
+--		                  DUMMY1_ACK_O       or
+		                  '0';
 
 
 	-- Halt Terminal ---------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		CORE_WB_HALT_I <= INT_MEM_HALT_O    or
-		                  GP_IO_CTRL_HALT_O or
---		                  DUMMY0_HALT_O     or
---		                  DUMMY1_HALT_O     or
-						  '0';
+		CORE_WB_HALT_I <= INT_MEM_HALT_O     or
+		                  GP_IO_CTRL_HALT_O  or
+--		                  DUMMY0_HALT_O      or
+--		                  DUMMY1_HALT_O      or
+		                  '0';
 
 
 	-- Halt Terminal ---------------------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		CORE_WB_ERR_I <= INT_MEM_ERR_O    or
-		                 GP_IO_CTRL_ERR_O or
---		                 DUMMY0_ERR_O     or
---		                 DUMMY1_ERR_O     or
-						 '0';
-
-
-	-- Valid Transfer Signal Terminal ----------------------------------------------------------------------
-	-- --------------------------------------------------------------------------------------------------------
-		INT_MEM_STB_I    <= CORE_WB_STB_O when (CORE_WB_ADR_O(31 downto log2(INT_MEM_SIZE_C)) = INT_MEM_BASE_C(31 downto log2(INT_MEM_SIZE_C))) else '0';
-		GP_IO_CTRL_STB_I <= CORE_WB_STB_O when (CORE_WB_ADR_O(31 downto log2(GP_IO_SIZE_C))   = GP_IO_BASE_C(  31 downto log2(GP_IO_SIZE_C)))   else '0';
---		DUMMY0_STB_I     <= CORE_WB_STB_O when (CORE_WB_ADR_O(31 downto log2(DUMMY0_SIZE_C))  = DUMMY0_BASE_C( 31 downto log2(DUMMY0_SIZE_C)))  else '0';
---		DUMMY1_STB_I     <= CORE_WB_STB_O when (CORE_WB_ADR_O(31 downto log2(DUMMY1_SIZE_C))  = DUMMY1_BASE_C( 31 downto log2(DUMMY1_SIZE_C)))  else '0';
+		CORE_WB_ERR_I <=  INT_MEM_ERR_O      or
+		                  GP_IO_CTRL_ERR_O   or
+--		                  DUMMY0_ERR_O       or
+--		                  DUMMY1_ERR_O       or
+		                  '0';
 
 
 

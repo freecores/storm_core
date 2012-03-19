@@ -21,7 +21,7 @@
 -- #                                     | -> stnolting@googlemail.com                                   #
 -- #                                     | -> stnolting@web.de                                           #
 -- # *************************************************************************************************** #
--- # Last modified: 08.03.2012                                                                           #
+-- # Last modified: 17.03.2012                                                                           #
 -- #######################################################################################################
 
 library IEEE;
@@ -70,6 +70,7 @@ entity CORE is
 				D_CACHE_HIT     : in  STD_LOGIC;                     -- d-cache hit
 				D_CACHE_FRESH   : out STD_LOGIC;                     -- refresh d-cache
 				D_CACHE_CIO     : out STD_LOGIC;                     -- enable cached IO
+				IO_PROTECT_O    : out STD_LOGIC;                     -- protected IO
 				D_CACHE_SYNC    : in  STD_LOGIC;                     -- cache is sync
 
 -- ###############################################################################################
@@ -255,6 +256,7 @@ begin
 							IC_MISS_I       => I_CACHE_MISS,    -- i-cache miss accessear i-cache
 							C_WTHRU_O       => C_WTHRU_O,       -- write through
 							CACHED_IO_O     => D_CACHE_CIO,     -- en cached IO
+							PRTCT_IO_O      => IO_PROTECT_O,    -- protected IO
 							DC_SYNC_I       => D_CACHE_SYNC,    -- d-cache is sync
 							IO_PORT_O       => IO_PORT_OUT,     -- direct output
 							IO_PORT_I       => IO_PORT_IN,      -- direct input

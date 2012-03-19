@@ -149,7 +149,7 @@ begin
 
 	-- Page Base Address System ----------------------------------------------------------------------------
 	-- --------------------------------------------------------------------------------------------------------
-		PAGE_ADR_SYS: process(CORE_CLK_I, PAGE_BASE_ADR, B_BASE_O_SEL)
+		PAGE_ADR_SYS: process(CORE_CLK_I, PAGE_BASE_ADR, B_BASE_O_SEL, B_P_SEL_I)
 		begin
 			-- Update Base Adr Register --
 			if rising_edge(CORE_CLK_I) then

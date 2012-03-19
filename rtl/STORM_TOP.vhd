@@ -21,7 +21,7 @@
 -- #     - LOAD_STORE_UNIT.vhd              |  Download at http://opencores.org/project,storm_core         #
 -- #     - OPCODE_DECODER.vhd               |                                                              #
 -- # ***************************************************************************************************** #
--- # Last modified: 08.03.2012                                                                        =/\= #
+-- # Last modified: 17.03.2012                                                                        =/\= #
 -- #########################################################################################################
 
 library IEEE;
@@ -115,6 +115,7 @@ architecture Structure of STORM_TOP is
 	signal ST_DC_FRESH   : STD_LOGIC;
 	signal ST_DC_CIO     : STD_LOGIC;
 	signal ST_DC_SYNC    : STD_LOGIC;
+	signal ST_PRTCT_IO   : STD_LOGIC;
 
 	-- Bus Unit D-Cache Interface --
 	signal BS_DC_CS      : STD_LOGIC;
@@ -183,6 +184,7 @@ begin
 						D_CACHE_HIT     => ST_DC_HIT,    -- d-cache hit
 						D_CACHE_FRESH   => ST_DC_FRESH,  -- refresh d-cache
 						D_CACHE_CIO     => ST_DC_CIO,    -- en cached IO
+						IO_PROTECT_O    => ST_PRTCT_IO,  -- protected IO
 						D_CACHE_SYNC    => ST_DC_SYNC,   -- d-cache is sync
 
 						-- Instruction Cache Interface --
@@ -286,9 +288,9 @@ begin
 
 						-- Bus Unit Access --
 						B_CS_I      => BS_DC_CS,      -- bus unit request
-						B_P_SEL_I   => BS_DC_P_SEL, -- bus unit page select
-						B_D_SEL_O   => BS_DC_D_SEL, -- selected dirty bit
-						B_A_SEL_O   => BS_DC_A_SEL, -- selected base adr
+						B_P_SEL_I   => BS_DC_P_SEL,   -- bus unit page select
+						B_D_SEL_O   => BS_DC_D_SEL,   -- selected dirty bit
+						B_A_SEL_O   => BS_DC_A_SEL,   -- selected base adr
 						B_ADR_I     => BS_DC_ADR,     -- address input
 						B_DATA_I    => BS_DC_DATA_I,  -- data input
 						B_DATA_O    => BS_DC_DATA_O,  -- data output
@@ -336,6 +338,7 @@ begin
 						I_ABORT_O           => I_ABORT,       -- bus error during instruction transfer
 						C_BUS_CYCC_I        => C_BUS_CYCC,    -- max bus cycle length
 						CACHED_IO_I         => ST_DC_CIO,     -- enable cached IO
+						PROTECTED_IO_I      => ST_PRTCT_IO,   -- protected IO
 						ADR_FEEDBACK_O      => ADR_FEEDBACK,  -- address feedback for exception handling
 
 						-- Data Cache Interface --

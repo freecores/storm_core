@@ -5,7 +5,7 @@
 -- #  This file contains all needed components and       #
 -- #  system parameters for the STORM Core processor.    #
 -- # +-------------------------------------------------+ #
--- # Last modified: 08.03.2012                           #
+-- # Last modified: 17.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -186,7 +186,8 @@ package STORM_core_package is
 	constant CSCR0_DAR        : natural :=  4; -- d-cache "read through"
 	constant CSCR0_IAR        : natural :=  5; -- i-cache "read through"
 	constant CSCR0_CIO        : natural :=  6; -- enable cached IO
-	constant CSCR0_DCS        : natural :=  7; -- d-cache is sync
+	constant CSCR0_PIO        : natural :=  7; -- protected IO
+	constant CSCR0_DCS        : natural :=  8; -- d-cache is sync
 
 	constant CSCR0_LFSRE      : natural := 13; -- internal LFSR enable
 	constant CSCR0_LFSRM      : natural := 14; -- internal LFSR update mode (0:auto/1:access)
@@ -264,11 +265,12 @@ package STORM_core_package is
 	-- Keith Urban - You Gonna Fly
 	-- Miranda Lambert - Baggage Claim
 	-- Diamond Rio - Meet In The Middle
+	-- Lost Trailers - How 'Bout You Don't
 
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
 	constant L_AND : STD_LOGIC_VECTOR(3 downto 0) := "0000"; -- logical and
-	constant L_XOR : STD_LOGIC_VECTOR(3 downto 0) := "0001"; -- logical exclusive or
+	constant L_XOR : STD_LOGIC_VECTOR(3 downto 0) := "0001"; -- logical xor
 	constant A_SUB : STD_LOGIC_VECTOR(3 downto 0) := "0010"; -- sub
 	constant A_RSB : STD_LOGIC_VECTOR(3 downto 0) := "0011"; -- reverse sub
 	constant A_ADD : STD_LOGIC_VECTOR(3 downto 0) := "0100"; -- add
@@ -280,12 +282,12 @@ package STORM_core_package is
 	constant A_CMP : STD_LOGIC_VECTOR(3 downto 0) := "1010"; -- compare by subtraction
 	constant A_CMN : STD_LOGIC_VECTOR(3 downto 0) := "1011"; -- compare by addition
 	constant L_OR  : STD_LOGIC_VECTOR(3 downto 0) := "1100"; -- logical or
-	constant L_MOV : STD_LOGIC_VECTOR(3 downto 0) := "1101"; -- pass operant B
+	constant L_MOV : STD_LOGIC_VECTOR(3 downto 0) := "1101"; -- pass operand B
 	constant L_BIC : STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- bit clear
 	constant L_NOT : STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- logical not
 	constant L_NAN : STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- logical nand
-	constant PassA : STD_LOGIC_VECTOR(3 downto 0) := L_TEQ;  -- pass operant A
-	constant PassB : STD_LOGIC_VECTOR(3 downto 0) := L_MOV;  -- pass operant B
+	constant PassA : STD_LOGIC_VECTOR(3 downto 0) := L_TEQ;  -- pass operand A
+	constant PassB : STD_LOGIC_VECTOR(3 downto 0) := L_MOV;  -- pass operand B
 	constant S_LSL : STD_LOGIC_VECTOR(1 downto 0) := "00";   -- logical shift left
 	constant S_LSR : STD_LOGIC_VECTOR(1 downto 0) := "01";   -- logical shift right
 	constant S_ASR : STD_LOGIC_VECTOR(1 downto 0) := "10";   -- arithmetical shift right
@@ -332,6 +334,7 @@ package STORM_core_package is
 				IC_MISS_I      : in  STD_LOGIC;
 				C_WTHRU_O      : out STD_LOGIC;
 				CACHED_IO_O    : out STD_LOGIC;
+				PRTCT_IO_O     : out STD_LOGIC;
 				DC_SYNC_I      : in  STD_LOGIC;
 				IO_PORT_O      : out STD_LOGIC_VECTOR(15 downto 0);
 				IO_PORT_I      : in  STD_LOGIC_VECTOR(15 downto 0);
@@ -600,6 +603,7 @@ package STORM_core_package is
 				I_ABORT_O          : out STD_LOGIC;
 				C_BUS_CYCC_I       : in  STD_LOGIC_VECTOR(15 downto 0);
 				CACHED_IO_I        : in  STD_LOGIC;
+				PROTECTED_IO_I     : in  STD_LOGIC;
 				ADR_FEEDBACK_O     : out STD_LOGIC_VECTOR(31 downto 0);
 				DC_CS_O            : out STD_LOGIC;
 				DC_P_ADR_I         : in  STD_LOGIC_VECTOR(31 downto 0);
@@ -664,6 +668,7 @@ package STORM_core_package is
 				D_CACHE_HIT     : in  STD_LOGIC;
 				D_CACHE_FRESH   : out STD_LOGIC;
 				D_CACHE_CIO     : out STD_LOGIC;
+				IO_PROTECT_O    : out STD_LOGIC;
 				D_CACHE_SYNC    : in  STD_LOGIC;
 				I_CACHE_REQ     : out STD_LOGIC;
 				I_CACHE_ADR     : out STD_LOGIC_VECTOR(31 downto 0);

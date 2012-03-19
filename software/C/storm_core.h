@@ -6,7 +6,7 @@
 //
 // Created by Stephan Nolting (stnolting@googlemail.com)
 // http://www.opencores.com/project,storm_core
-// Last modified 08. Mar. 2012
+// Last modified 13. Mar. 2012
 ////////////////////////////////////////////////////////////////////////////////
 
 /* Internal System Coprocessor Register Set */
@@ -16,7 +16,7 @@
 #define ID_REG_2    2 // ID register 2
 #define SYS_CTRL_0  6 // system control register 0
 #define CSTAT       8 // cache statistics register
-#define ADR_FB      9 // adr feedback from bus unit -> for exception handling
+#define ADR_FB      9 // adr feedback from bus unit -> for exception analysis
 #define LFSR_POLY  11 // Internal LFSR, polynomial
 #define LFSR_DATA  12 // Internal LFSR, shift register
 #define SYS_IO     13 // System IO ports
@@ -28,6 +28,9 @@
 #define DC_WTHRU   3 // cache write-thru enable
 #define DC_AUTOPR  4 // auto pre-reload d-cache page
 #define IC_AUTOPR  5 // auto pre-reload i-cache page
+#define CACHED_IO  6 // cached IO
+#define PRTC_IO    7 // protected IO
+#define DC_SYNC    8 // d-cache is sync
 #define LFSR_EN   13 // enable lfsr
 #define LFSR_M    14 // lfsr update mode
 #define LFSR_D    15 // lfsr shift direction

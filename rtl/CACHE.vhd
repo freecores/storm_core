@@ -82,9 +82,6 @@ end CACHE;
 
 architecture Behavioral of CACHE is
 
-	-- Is Simulation? --
-	constant IS_SIM : boolean := TRUE;
-
 	-- Cache Arbiter --
 	type   ARB_STATE_TYPE is (STORM_ACCESS, MISS_STATE, IO_REQUEST, IO_PIPE_RESYNC, IO_PIPE_RESYNC_END, DIRTY_STATE, PIPE_RESYNC);
 	signal ARB_STATE, ARB_STATE_NXT : ARB_STATE_TYPE;
@@ -552,11 +549,11 @@ begin
 			end if;
 		end process CACHE_ACCESS;
 
-		-- Dummy for simulation --
-		GEN_DEBUG_MEM:
-		for i in 0 to (CACHE_PAGES*PAGE_SIZE)-1 generate
-			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i) when (IS_SIM = TRUE) else x"00000000";
-		end generate;
+		-- Dummy cache-memory, for simulation only!!! --
+--		GEN_DEBUG_MEM:
+--		for i in 0 to (CACHE_PAGES*PAGE_SIZE)-1 generate
+--			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i);
+--		end generate;
 
 
 

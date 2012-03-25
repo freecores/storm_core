@@ -218,7 +218,7 @@ begin
 					DC_P_ADR_BUF <= (others => '0');
 					IC_P_ADR_BUF <= (others => '0');
 					WB_DATA_FF   <= (others => '0');
-					WB_ADR_O    <= (others => '0');
+					WB_ADR_O     <= (others => '0');
 					WB_CTI_O     <= (others => '0');
 					WB_TGC_O     <= (others => '0');
 					WB_STB_O     <= '0';
@@ -234,15 +234,16 @@ begin
 					TIMEOUT_CNT  <= TIMEOUT_CNT_NXT;
 					DC_P_ADR_BUF <= DC_P_ADR_I;
 					IC_P_ADR_BUF <= IC_P_ADR_I;
-					WB_DATA_FF   <= WB_DATA_FF_NXT;
-					WB_ADR_O     <= WB_ADR_BUF;
-					WB_CTI_O     <= WB_CTI_O_NXT;
-					WB_TGC_O     <= WB_TGC_O_NXT;
-					WB_STB_O     <= WB_STB_O_NXT;
-					WB_CYC_O     <= WB_CYC_O_NXT;
-					WB_WE_O      <= WB_WE_O_NXT;
-					-- Bus interface --
 					if (WB_HALT_I = '0') then
+						WB_DATA_FF   <= WB_DATA_FF_NXT;
+						WB_ADR_O     <= WB_ADR_BUF;
+						WB_CTI_O     <= WB_CTI_O_NXT;
+						WB_TGC_O     <= WB_TGC_O_NXT;
+						WB_STB_O     <= WB_STB_O_NXT;
+						WB_CYC_O     <= WB_CYC_O_NXT;
+						WB_WE_O      <= WB_WE_O_NXT;
+					-- Bus interface --
+					--if (WB_HALT_I = '0') then
 						-- Wishbone Sync --
 						WB_DATA_BUF <= WB_DATA_I;
 						WB_ACK_BUF  <= WB_ACK_I;
@@ -475,11 +476,11 @@ begin
 					TIMEOUT_CNT_NXT <= Std_Logic_Vector(unsigned(TIMEOUT_CNT) + 1);
 					if (WB_ADR_BUF >= Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4))  then
 						if (to_integer(unsigned(WB_ACK_CNT)) >= D_CACHE_PAGE_SIZE) then
-							DC_DRT_ACK_O   <= '1'; -- ack of dirty signal
-							WB_CTI_O_NXT   <= WB_BST_END_CYC;
 							ARB_STATE_NXT  <= END_TRANSFER;
 							WB_CYC_O_NXT   <= '0';
-							WB_STB_O_NXT   <= '0';
+							WB_STB_O_NXT <= '0';
+							WB_CTI_O_NXT <= WB_BST_END_CYC;
+							DC_DRT_ACK_O <= '1'; -- ack of dirty signal
 						end if;
 					end if;
 					if (DC_ADR_BUF < Std_Logic_Vector(unsigned(BASE_BUF) + (D_CACHE_PAGE_SIZE-1)*4)) then

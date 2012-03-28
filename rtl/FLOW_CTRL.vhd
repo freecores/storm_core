@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #             Operation Flow Control Unit             #
 -- # *************************************************** #
--- # Last modified: 09.02.2012                           #
+-- # Last modified: 28.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -248,9 +248,11 @@ begin
 					DEC_CTRL_FF               <= (others => '0');
 					OP_ADR_O                  <= (others => '0');
 					IMM_O                     <= (others => '0');
-					OPCODE_CTRL_O(5 downto 0) <= (others => '0');
+					OPCODE_CTRL_O(9 downto 0) <= (others => '0');
 				elsif (G_HALT_I = '0') and (CTRL_REG_HALT = '0') then
-					OPCODE_CTRL_O(4 downto 0) <= OPCODE_MISC_I(91 downto 87);
+					--OPCODE_CTRL_O(9 downto 0) <= OPCODE_MISC_I(96 downto 87); -- next offset & next dual op
+					OPCODE_CTRL_O(9 downto 1) <= OPCODE_MISC_I(96 downto 88); -- next offset & next dual op
+					OPCODE_CTRL_O(0)          <= OPCODE_MISC_I(87) and (not DIS_OF); -- flag for multi cycle ops
 					DEC_CTRL_FF               <= OPCODE_CTRL_I;
 					DEC_CTRL_FF(CTRL_EN)      <= not (DIS_OF);
 					OP_ADR_O                  <= OPCODE_MISC_I(47 downto 33);
@@ -269,7 +271,7 @@ begin
 
 			--- Multi Cycle OP Request ---
 			MULTI_CYCLE_REQ <= '1';
-			if (OPCODE_MISC_I(91 downto 87) = "00000") then
+			if (OPCODE_MISC_I(91 downto 87) = "00000") then -- next dual op
 				MULTI_CYCLE_REQ <= '0';
 			end if;
 

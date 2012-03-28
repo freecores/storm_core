@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #              Barrelshifter Unit                     #
 -- # *************************************************** #
--- # Last modified: 14.01.2011                           #
+-- # Last modified: 27.03.2011                           #
 -- #######################################################
 
 library IEEE;
@@ -59,7 +59,7 @@ begin
 
 				when S_LSR   => -- Logical Shift Right
 					if (shift_positions = 0) then -- LSR #32
-						SHIFT_DATA := to_StdLogicVector(to_BitVector(SHIFT_DATA_I) srl 32);
+						SHIFT_DATA := (others => '0');
 						CARRY_O    <= SHIFT_DATA_I(31);
 					else -- LSR #shift_positions
 						SHIFT_DATA := to_StdLogicVector(to_BitVector(SHIFT_DATA_I) srl shift_positions);
@@ -68,7 +68,7 @@ begin
 
 				when S_ASR   => -- Arithmetical Shift Right
 					if (shift_positions = 0) then -- ASR #32
-						SHIFT_DATA := to_StdLogicVector(to_BitVector(SHIFT_DATA_I) sra 32);
+						SHIFT_DATA := (others => SHIFT_DATA_I(31)); -- complete sign extension
 						CARRY_O    <= SHIFT_DATA_I(31);
 					else -- ASR #shift_positions
 						SHIFT_DATA := to_StdLogicVector(to_BitVector(SHIFT_DATA_I) sra shift_positions);

@@ -549,10 +549,10 @@ begin
 			end if;
 		end process CACHE_ACCESS;
 
-		-- Dummy cache-memory, for simulation only!!! --
+		-- Dummy for simulation --
 --		GEN_DEBUG_MEM:
 --		for i in 0 to (CACHE_PAGES*PAGE_SIZE)-1 generate
---			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i);
+--			SIM_MEM(i) <= CACHE_MEM_HH(i) & CACHE_MEM_HL(i) & CACHE_MEM_LH(i) & CACHE_MEM_LL(i) when (IS_SIM = TRUE) else x"00000000";
 --		end generate;
 
 

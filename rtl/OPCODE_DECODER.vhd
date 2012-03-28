@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #           ARM-Native OPCODE Decoding Unit           #
 -- # *************************************************** #
--- # Last modified: 18.03.2012                           #
+-- # Last modified: 28.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -33,15 +33,17 @@ architecture instruction_decoder of OPCODE_DECODER is
 -- ###############################################################################################
 
 	-- INPUTS --
-	signal	INSTR_REG     : STD_LOGIC_VECTOR(31 downto 00);
-	signal	DUAL_OP       : STD_LOGIC_VECTOR(04 downto 00);
+	signal INSTR_REG     : STD_LOGIC_VECTOR(31 downto 0);
+	signal DUAL_OP       : STD_LOGIC_VECTOR(04 downto 0);
+	signal R_OFFSET      : STD_LOGIC_VECTOR(04 downto 0);
 
 	-- OUTPUTS --
-	signal	DEC_CTRL      : STD_LOGIC_VECTOR(CTRL_MSB downto 0);
-	signal	OP_ADR_OUT    : STD_LOGIC_VECTOR(11 downto 0);
-	signal	IMM_OUT       : STD_LOGIC_VECTOR(31 downto 0);
-	signal	NEXT_DUAL_OP  : STD_LOGIC_VECTOR(04 downto 0);
-	signal	REG_SEL       : STD_LOGIC_VECTOR(14 downto 12);
+	signal DEC_CTRL      : STD_LOGIC_VECTOR(CTRL_MSB downto 0);
+	signal OP_ADR_OUT    : STD_LOGIC_VECTOR(11 downto 0);
+	signal IMM_OUT       : STD_LOGIC_VECTOR(31 downto 0);
+	signal NEXT_DUAL_OP  : STD_LOGIC_VECTOR(04 downto 0);
+	signal NEXT_OFFSET   : STD_LOGIC_VECTOR(04 downto 0);
+	signal REG_SEL       : STD_LOGIC_VECTOR(14 downto 12);
 
 begin
 
@@ -50,7 +52,8 @@ begin
 -- ###############################################################################################
 
 		INSTR_REG <= OPCODE_DATA_I;
-		DUAL_OP   <= OPCODE_CTRL_I(04 downto 0);
+		DUAL_OP   <= OPCODE_CTRL_I(04 downto 00);
+		R_OFFSET  <= OPCODE_CTRL_I(09 downto 05);
 
 		OPCODE_CTRL_O <= DEC_CTRL;
 		OPCODE_MISC_O(44 downto 33) <= OP_ADR_OUT;
@@ -58,20 +61,21 @@ begin
 		OPCODE_MISC_O(79 downto 48) <= IMM_OUT;
 		OPCODE_MISC_O(86 downto 80) <= (others => '0');
 		OPCODE_MISC_O(91 downto 87) <= NEXT_DUAL_OP;
-		OPCODE_MISC_O(99 downto 93) <= (others => '0'); -- unused
+		OPCODE_MISC_O(96 downto 92) <= NEXT_OFFSET;
+		OPCODE_MISC_O(99 downto 97) <= (others => '0'); -- unused
 
 
 -- ###############################################################################################
--- ##       ARM COMPATIBLE OPCODE DECODER                                                       ##
+-- ##       ARM NATIVE OPCODE DECODER                                                           ##
 -- ###############################################################################################
 
-		OPCODE_DECODER: process (INSTR_REG, DUAL_OP)
-			variable temp_6                         : std_logic_vector(03 downto 0);
-			variable temp_3, temp_4, temp_5         : std_logic_vector(02 downto 0);
+		OPCODE_DECODER: process (INSTR_REG, DUAL_OP, R_OFFSET)
+			variable temp_2, temp_3, temp_4, temp_5 : std_logic_vector(02 downto 0);
 			variable B_TEMP_1, B_TEMP_2, B_TEMP_3   : std_logic_vector(01 downto 0);
 			variable block_t_en_v                   : std_logic;
-			variable block_t_radr_v                 : std_logic_vector(03 downto 0);
 			variable block_t_tmp_v                  : std_logic_vector(15 downto 0);
+			variable adr_offs_v                     : std_logic_vector(04 downto 0);
+			variable number_of_regs_v               : std_logic_vector(04 downto 0);
 			variable pc_in_list_v                   : std_logic;
 		begin
 
@@ -85,6 +89,7 @@ begin
 			REG_SEL                                      <= (others => '0'); -- all operands are anything but registers
 			IMM_OUT                                      <= (others => '0');
 			NEXT_DUAL_OP                                 <= (others => '0'); -- single cycle operation as default
+			NEXT_OFFSET                                  <= (others => '0'); -- auto offset is 0
 
 			--- INSTRUCTION CLASS DECODER ---
 			case INSTR_REG(27 downto 26) is
@@ -424,7 +429,7 @@ begin
 						when "111" => -- load, pre indexing, write back
 						----------------------------------------------------------------------------------
 							if (DUAL_OP(0) = '0') then -- ADD/SUB Ra,Ra,Op_B
-								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)	<= INSTR_REG(19 downto 16); -- R_DEST
+								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)	<= INSTR_REG(19 downto 16); -- Base
 								DEC_CTRL(CTRL_MEM_ACC)					<= '0'; -- MEM_ACCESS
 								DEC_CTRL(CTRL_WB_EN)					<= '1'; -- WB EN
 								NEXT_DUAL_OP(0) 						<= '1';
@@ -532,133 +537,141 @@ begin
 					----------------------------------------------------------------------------------
 						OP_ADR_OUT(OP_A_ADR_3 downto OP_A_ADR_0)     <= INSTR_REG(19 downto 16); -- BASE
 						REG_SEL(OP_A_IS_REG)    				     <= '1'; -- BASE is always a register
-						IMM_OUT(31 downto 0)                         <= x"00000004"; -- offset immediate
 						DEC_CTRL(CTRL_CONST)                         <= '1'; -- is immediate
 						DEC_CTRL(CTRL_MEM_DQ_1 downto CTRL_MEM_DQ_0) <= DQ_WORD; -- word-quantity
-						REG_SEL(OP_A_IS_REG)    				     <= '1'; -- OFFSET is always am immedita
+						REG_SEL(OP_A_IS_REG)    				     <= '1'; -- op A is always the base register
+						REG_SEL(OP_B_IS_REG)    				     <= '0'; -- OFFSET is always an immediate
 
-						if (INSTR_REG(23) = '0') then -- sub index
-							DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
-							block_t_radr_v := not DUAL_OP(4 downto 1);
-						else -- add index
-							DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
-							block_t_radr_v := DUAL_OP(4 downto 1);
+						--- (Reversed) Up/Down indexing ---
+						if (INSTR_REG(21) = '1') then -- perform write back
+							if (INSTR_REG(23) = '0') then -- reverse sub index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
+							else -- reverse add index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB;
+							end if;
+						else -- no write back
+							if (INSTR_REG(23) = '0') then -- sub index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB;
+							else -- add index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD;
+							end if;
 						end if;
 
-						NEXT_DUAL_OP(0) <= '0';
-						OP_ADR_OUT(OP_C_ADR_3 downto OP_C_ADR_0) <= block_t_radr_v;
-						block_t_tmp_v := INSTR_REG(15 downto 0);
-						block_t_en_v := block_t_tmp_v(to_integer(unsigned(block_t_radr_v)));
+						--- Register index manager ---
+						OP_ADR_OUT(OP_C_ADR_3 downto OP_C_ADR_0) <= DUAL_OP(4 downto 1); -- register to process
+						block_t_tmp_v := INSTR_REG(15 downto 0); -- register list
+						block_t_en_v := block_t_tmp_v(to_integer(unsigned(DUAL_OP(4 downto 1)))); -- process current reg?
+
+						--- Transfer action ---
+						adr_offs_v := R_OFFSET; -- actual offset
 						if (block_t_en_v = '1') then -- transfer register
-							NEXT_DUAL_OP(4 downto 1) <= DUAL_OP(4 downto 1);
-						else -- dummy cycle
-							NEXT_DUAL_OP(4 downto 1) <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
+							if (INSTR_REG(21) = '1') then -- perform write back
+								if (INSTR_REG(23) = '1') then -- inc (reversed)
+									NEXT_OFFSET <= Std_Logic_Vector(unsigned(adr_offs_v) - 1);
+								else -- dec (reversed)
+									NEXT_OFFSET <= Std_Logic_Vector(unsigned(adr_offs_v) + 1);
+								end if;
+							else -- no write back
+								if (INSTR_REG(23) = '1') then -- inc (reversed)
+									NEXT_OFFSET <= Std_Logic_Vector(unsigned(adr_offs_v) + 1);
+								else -- dec (reversed)
+									NEXT_OFFSET <= Std_Logic_Vector(unsigned(adr_offs_v) - 1);
+								end if;
+							end if;
+						else -- empty cycle (no transfer)
+							NEXT_OFFSET <= adr_offs_v; -- keep offset
+--							DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= COND_NV; -- disable cycle
 						end if;
 
+						--- End-of-block control ---
+						NEXT_DUAL_OP(0) <= DUAL_OP(0); -- keep flag
+						NEXT_DUAL_OP(4 downto 1) <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1); -- next possible reg
 						pc_in_list_v := '0';
-						if (block_t_radr_v = C_PC_ADR) then
+						if (DUAL_OP(4 downto 1) = C_PC_ADR) then -- for last cycle ^^
 							pc_in_list_v := '1';
+							NEXT_DUAL_OP <= (others => '0'); -- finish instruction
 						end if;
-						DEC_CTRL(CTRL_RD_USR) <= (not INSTR_REG(20)) and INSTR_REG(22); -- read reg in USR mode
-						DEC_CTRL(CTRL_WR_USR) <= INSTR_REG(20) and INSTR_REG(22) and (not pc_in_list_v); -- write reg in USR mode
-						DEC_CTRL(CTRL_AF)     <= INSTR_REG(20) and INSTR_REG(22) and pc_in_list_v; -- SMSR -> CMSR
 
-						temp_6 := block_t_en_v & INSTR_REG(20) & INSTR_REG(24) & INSTR_REG(21);
-						case temp_6 is -- L_P_W
+						--- Special functions ---
+						DEC_CTRL(CTRL_AF)     <=      INSTR_REG(20)  and INSTR_REG(22) and      pc_in_list_v;  -- copy SMSR => CMSR when transf. the PC
+						DEC_CTRL(CTRL_RD_USR) <= (not INSTR_REG(20)) and INSTR_REG(22);                        -- read regs from user bank
+						DEC_CTRL(CTRL_WR_USR) <=      INSTR_REG(20)  and INSTR_REG(22) and (not pc_in_list_v); -- write regs to user bank
 
-							when "1110" => -- load, pre indexing, no write back
-							----------------------------------------------------------------------------------
-								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= block_t_radr_v; -- R_DEST
-								DEC_CTRL(CTRL_MEM_ACC)               <= '1'; -- MEM_ACCESS
-								DEC_CTRL(CTRL_MEM_RW)                <= '0'; -- MEM_READ
-								DEC_CTRL(CTRL_WB_EN)                 <= '1'; -- WB EN
-								NEXT_DUAL_OP(0)                      <= '0';
-								NEXT_DUAL_OP(4 downto 1)             <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-								REG_SEL(OP_C_IS_REG)                 <= '0';
+						--- The memory access itself ---
+						DEC_CTRL(CTRL_MEM_ACC) <= block_t_en_v; -- MEM_ACCESS if valid transfer
+						DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= DUAL_OP(4 downto 1); -- R_DEST, just for load instr important
+						if (block_t_en_v = '1') then
+							if (INSTR_REG(20) = '1') then
+								-- LD Rd, [Ra+-auto_offset]
+								DEC_CTRL(CTRL_MEM_RW) <= '0'; -- MEM_READ
+								DEC_CTRL(CTRL_WB_EN)  <= '1'; -- WB EN to save loaded data
+							else
+								-- ST [Ra+-auto_offset], Rd 
+								DEC_CTRL(CTRL_MEM_RW) <= '1'; -- MEM_WRITE
+								REG_SEL(OP_C_IS_REG)  <= '1'; -- the store-data
+							end if;
+						end if;
 
-							when "1111" => -- load, pre indexing, write back
-							----------------------------------------------------------------------------------
-								if (DUAL_OP(0) = '0') then -- ADD/SUB Ra,Ra,Op_B
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= INSTR_REG(19 downto 16); -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)               <= '0'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_WB_EN)                 <= '1'; -- WB EN
-									NEXT_DUAL_OP(0)                      <= '1';
-									REG_SEL(OP_C_IS_REG)                 <= '0';
-								else -- LD Rd, Ra
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)         <= block_t_radr_v; -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)                       <= '1'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_WB_EN)                         <= '1'; -- WB EN
-									NEXT_DUAL_OP(0)                              <= '0';
-									NEXT_DUAL_OP(4 downto 1)                     <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassA; -- ALU_CTRL = PassA
-									REG_SEL(OP_C_IS_REG)                         <= '0';
+						--- First cycle: SETUP ---
+						if (DUAL_OP(0) = '0') then
+							-- Number of regs to transfer --
+							number_of_regs_v := (others => '0');
+							for i in 0 to 15 loop
+								if (INSTR_REG(i) = '1') then
+									number_of_regs_v := Std_Logic_Vector(unsigned(number_of_regs_v) + 1);
+								else
+									number_of_regs_v := number_of_regs_v;
 								end if;
+							end loop;
 
-							when "1100" | "1101" => -- load, post indexing, always write back
-							----------------------------------------------------------------------------------
-								if (DUAL_OP(0) = '0') then -- LD Rd,Ra
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)         <= block_t_radr_v; -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)                       <= '1'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_MEM_RW)                        <= '0'; -- MEM_READ
-									DEC_CTRL(CTRL_WB_EN)                         <= '1'; -- WB EN
-									NEXT_DUAL_OP(0)                              <= '1';
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassA; -- ALU_CTRL = PassA
-									REG_SEL(OP_C_IS_REG)                         <= '0';
-								else -- ADD/SUB Ra,Ra,Op_B
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= INSTR_REG(19 downto 16); -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)               <= '0'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_WB_EN)                 <= '1'; -- WB EN
-									NEXT_DUAL_OP(0)                      <= '0';
-									NEXT_DUAL_OP(4 downto 1)             <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-									REG_SEL(OP_C_IS_REG)                 <= '0';
+							-- Control for BASE' write back --
+							DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= INSTR_REG(31 downto 28); -- enable wb cycle if wanted
+							DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)     <= INSTR_REG(19 downto 16); -- R_DEST = BASE
+							DEC_CTRL(CTRL_WB_EN)                     <= INSTR_REG(21); -- WB EN
+							NEXT_DUAL_OP                             <= "00001"; -- prepare for start
+							REG_SEL(OP_C_IS_REG)                     <= '0';
+							DEC_CTRL(CTRL_MEM_ACC)                   <= '0'; -- no memory access, thank you
+							if (INSTR_REG(23) = '0') then -- sub index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
+							else -- add index
+								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_ADD; -- ALU_CTRL = ADD
+							end if;
+							adr_offs_v := number_of_regs_v;
+
+							-- Calculate start offset --
+							if (INSTR_REG(21) = '1') then -- perform write back
+								if (INSTR_REG(24) = '0') then
+									if (INSTR_REG(23) = '1') then -- post, increment
+										NEXT_OFFSET <= number_of_regs_v;
+									else -- post, decrement
+										NEXT_OFFSET <= "00001";
+									end if;
+								else
+									if (INSTR_REG(23) = '1') then -- pre, increment
+										NEXT_OFFSET <= Std_Logic_Vector(unsigned(number_of_regs_v) + 1);
+									else -- pre, decrement
+										NEXT_OFFSET <= "00000";
+									end if;
 								end if;
-
-							when "1010" => -- store, pre indexing, no write back
-							----------------------------------------------------------------------------------
-								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= "0000"; -- R_DEST
-								DEC_CTRL(CTRL_MEM_ACC)               <= '1'; -- MEM_ACCESS
-								DEC_CTRL(CTRL_MEM_RW)                <= '1'; -- MEM_WRITE
-								DEC_CTRL(CTRL_WB_EN)                 <= '0'; -- WB EN
-								NEXT_DUAL_OP(0)                      <= '0';
-								NEXT_DUAL_OP(4 downto 1)             <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-								REG_SEL(OP_C_IS_REG)                 <= '1';
-
-							when "1011" => -- store, pre indexing, write back
-							----------------------------------------------------------------------------------
-								DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= INSTR_REG(19 downto 16); -- R_DEST
-								DEC_CTRL(CTRL_MEM_ACC)               <= '1'; -- MEM_ACCESS
-								DEC_CTRL(CTRL_MEM_RW)                <= '1'; -- MEM_WRITE
-								DEC_CTRL(CTRL_WB_EN)                 <= '1'; -- WB EN
-								NEXT_DUAL_OP(0)                      <= '0';
-								NEXT_DUAL_OP(4 downto 1)             <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-								REG_SEL(OP_C_IS_REG)                 <= '1';
-
-							when "1000" | "1001" => -- store, post indexing, always write back
-							----------------------------------------------------------------------------------
-								if (DUAL_OP(0) = '0') then -- ST Ra, Rd
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)         <= block_t_radr_v; -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)                       <= '1'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_MEM_RW)                        <= '1'; -- MEM_WRITE
-									DEC_CTRL(CTRL_WB_EN)                         <= '0'; -- WB EN
-									NEXT_DUAL_OP(0)                              <= '1';
-									DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassA; -- ALU_CTRL = PassA
-									REG_SEL(OP_C_IS_REG)                         <= '1';
-								else -- ADD/SUB Ra,Ra,Op_B
-									DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0) <= INSTR_REG(19 downto 16); -- R_DEST
-									DEC_CTRL(CTRL_MEM_ACC)               <= '0'; -- MEM_ACCESS
-									DEC_CTRL(CTRL_MEM_RW)                <= '0'; -- MEM_WRITE
-									DEC_CTRL(CTRL_WB_EN)                 <= '1'; -- WB EN
-									NEXT_DUAL_OP(0)                      <= '0';
-									NEXT_DUAL_OP(4 downto 1)             <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-									REG_SEL(OP_C_IS_REG)                 <= '0';
+							else -- no write back
+								if (INSTR_REG(24) = '0') then
+									if (INSTR_REG(23) = '1') then -- post, increment
+										NEXT_OFFSET <= "00000";
+									else -- post, decrement
+										NEXT_OFFSET <= Std_Logic_Vector(unsigned(number_of_regs_v) - 1);
+									end if;
+								else
+									if (INSTR_REG(23) = '1') then -- pre, increment
+										NEXT_OFFSET <= "00001";
+									else -- pre, decrement
+										NEXT_OFFSET <= number_of_regs_v;
+									end if;
 								end if;
+							end if;
+						end if;
 
-							when others => -- dummy access
-							----------------------------------------------------------------------------------
-								NEXT_DUAL_OP(0)          <= '0';
-								NEXT_DUAL_OP(4 downto 1) <= Std_Logic_Vector(unsigned(DUAL_OP(4 downto 1)) + 1);
-
-						end case;
+						-- zhe lonely address inc --
+						IMM_OUT(31 downto 0) <= x"000000" & '0' & adr_offs_v & "00"; -- auto offset
 
 					end if;
 

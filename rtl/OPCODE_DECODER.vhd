@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #           ARM-Native OPCODE Decoding Unit           #
 -- # *************************************************** #
--- # Last modified: 28.03.2012                           #
+-- # Last modified: 29.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -94,7 +94,7 @@ begin
 			--- INSTRUCTION CLASS DECODER ---
 			case INSTR_REG(27 downto 26) is
 
-				when "00" => -- ALU DATA PROCESSING / SREG ACCESS / MUL(MAC) / BX / SWP / (S/U/HW/B) MEM ACCESS
+				when "00" => -- ALU DATA PROCESSING / SREG ACCESS / MUL(MAC) / MULL/MLAL / BX / SWP / (S/U/HW/B) MEM ACCESS
 				-- ===================================================================================
 					if (INSTR_REG(25 downto 22) = "0000") and (INSTR_REG(7 downto 4) = "1001") then
 					-- MUL/MAC
@@ -115,11 +115,19 @@ begin
 							DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB;
 						end if;
 
-					elsif ((INSTR_REG(25 downto 23) = "001") and (INSTR_REG(7 downto 4) = "1001")) or
-					      (INSTR_REG(25 downto 4) = "0100101111111111110001") then
-					-- MULL/MLAL/BX
+					elsif (INSTR_REG(25 downto 23) = "001") and (INSTR_REG(7 downto 4) = "1001") then
+					-- MULL/MLAL
 					----------------------------------------------------------------------------------
 						DEC_CTRL(CTRL_UND) <= '1'; -- not supported/implemented
+
+					elsif (INSTR_REG(25 downto 4) = "0100101111111111110001") then
+					-- Branch and Exchange (BX)
+					----------------------------------------------------------------------------------
+						DEC_CTRL(CTRL_BX)                            <= '1'; -- is bx instruction
+						DEC_CTRL(CTRL_BRANCH)                        <= '1'; -- BRANCH_INSTR
+						OP_ADR_OUT(OP_B_ADR_3 downto OP_B_ADR_0)     <= INSTR_REG(03 downto 00);
+						DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= PassB;
+						REG_SEL(OP_B_IS_REG)                         <= '1';
 
 					elsif (INSTR_REG(25) = '0') and (INSTR_REG(7) = '1') and (INSTR_REG(4) = '1') then
 					-- Halfword / Signed Data Transfer
@@ -670,7 +678,7 @@ begin
 							end if;
 						end if;
 
-						-- zhe lonely address inc --
+						-- the lonely address inc --
 						IMM_OUT(31 downto 0) <= x"000000" & '0' & adr_offs_v & "00"; -- auto offset
 
 					end if;

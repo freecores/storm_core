@@ -5,7 +5,7 @@
 -- #  This file contains all needed components and       #
 -- #  system parameters for the STORM Core processor.    #
 -- # +-------------------------------------------------+ #
--- # Last modified: 17.03.2012                           #
+-- # Last modified: 29.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -128,7 +128,9 @@ package STORM_core_package is
 	constant CTRL_SHIFT_V_3   : natural := 44; -- shift value bit 3
 	constant CTRL_SHIFT_V_4   : natural := 45; -- shift value bit 4
 
-	constant CTRL_MSB         : natural := 45; -- size of control bus
+	constant CTRL_BX          : natural := 46; -- is branch and exchange operation
+
+	constant CTRL_MSB         : natural := 46; -- size of control bus
 
 	-- Progress Redefinitions --
 	constant CTRL_MODE_0      : natural := CTRL_AF;       -- mode bit 0

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #              Machine Control System                 #
 -- # *************************************************** #
--- # Last modified: 27.03.2012                           #
+-- # Last modified: 29.03.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -130,6 +130,7 @@ architecture MC_SYS_STRUCTURE of MC_SYS is
 	signal IAB_TAKEN_NXT        : STD_LOGIC; 
 	signal DAB_TAKEN_NXT        : STD_LOGIC;
 	signal DIS_CYCLE_OK         : STD_LOGIC;
+	signal INVALID_BX_REQ       : STD_LOGIC;
 
 	-- Coprocessor Signals --
 	signal INVALID_CP_ACC       : STD_LOGIC;
@@ -226,7 +227,7 @@ begin
 		-- Software Interrupt Trap taken --
 		SWI_TAKEN <= CTRL_I(CTRL_EN) and CTRL_I(CTRL_SWI);
 		-- Undefined Instruction Trap taken --
-		UND_TAKEN <= CTRL_I(CTRL_EN) and (CTRL_I(CTRL_UND) or INVALID_CP_ACC);
+		UND_TAKEN <= CTRL_I(CTRL_EN) and (CTRL_I(CTRL_UND) or INVALID_CP_ACC or INVALID_BX_REQ);
 
 
 
@@ -254,7 +255,8 @@ begin
 
 	-- Interrupt Handler System -----------------------------------------------------------------------
 	-- ---------------------------------------------------------------------------------------------------
-		INT_HANDLER: process(MCR_CMSR, FLAG_I, FIQ_TAKEN, IRQ_TAKEN, DAB_TAKEN, IAB_TAKEN, SWI_TAKEN, UND_TAKEN)
+		INT_HANDLER: process(MCR_CMSR, FLAG_I, FIQ_TAKEN, IRQ_TAKEN, DAB_TAKEN,
+		                     IAB_TAKEN, SWI_TAKEN, UND_TAKEN, CTRL_I, MCR_DATA_I)
 		begin
 			-- default values --
 			CONT_EXE               <= '1';
@@ -267,6 +269,15 @@ begin
 			FLAG_BUS(SREG_IRQ_DIS) <= MCR_CMSR(SREG_IRQ_DIS); -- keep current interrupt settings
 			FLAG_BUS(SREG_DAB_DIS) <= MCR_CMSR(SREG_DAB_DIS); -- keep current interrupt settings
 			FLAG_BUS(SREG_IAB_DIS) <= MCR_CMSR(SREG_IAB_DIS); -- keep current interrupt settings
+
+			--- Short Instruction Mode ---
+			if (CTRL_I(CTRL_EN) = '1') and (CTRL_I(CTRL_BX) = '1') and (SHIN_EN = TRUE) then
+				FLAG_BUS(SREG_SHIN_M) <= MCR_DATA_I(0);
+				INVALID_BX_REQ <= MCR_DATA_I(0);
+			else
+				FLAG_BUS(SREG_SHIN_M) <= MCR_CMSR(0);
+				INVALID_BX_REQ <= '0';
+			end if;
 
 			--- Priority 1: Data Fetch Abort ---
 			if (DAB_TAKEN = '1') then
@@ -346,13 +357,13 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					MCR_PC   <= BOOT_VEC;    -- start-up address
-					MCR_CMSR <= x"000003DF"; -- INTs disabled and we're in SYSTEM32 mode
-					SMSR_FIQ <= x"000003D0"; -- INTs disabled and return to USER32 mode
-					SMSR_SVC <= x"000003D0"; -- INTs disabled and return to USER32 mode
-					SMSR_ABT <= x"000003D0"; -- INTs disabled and return to USER32 mode
-					SMSR_IRQ <= x"000003D0"; -- INTs disabled and return to USER32 mode
-					SMSR_UND <= x"000003D0"; -- INTs disabled and return to USER32 mode
-					SMSR_SYS <= x"000003D0"; -- INTs disabled and return to USER32 mode
+					MCR_CMSR <= x"000003DF"; -- all INTs disabled and we're in SYSTEM32 mode
+					SMSR_FIQ <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					SMSR_SVC <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					SMSR_ABT <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					SMSR_IRQ <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					SMSR_UND <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					SMSR_SYS <= x"000003D0"; -- all INTs disabled and return to USER32 mode
 				elsif (G_HALT_I = '0') then
 
 
@@ -378,8 +389,7 @@ begin
 					cmsr_acc_case_v := CONT_EXE & CTRL_I(CTRL_EN) & cont_ret_v & mwr_cmsr_v;
 					case cmsr_acc_case_v is
 						when "1000" | "1001" | "1010" | "1011" | "1100" | "1101" | "1110" | "1111" =>
-							MCR_CMSR(4 downto 0) <= FLAG_BUS(4 downto 0); -- mode bits
-							MCR_CMSR(9 downto 6) <= FLAG_BUS(9 downto 6); -- interrupt disable bits
+							MCR_CMSR(9 downto 0) <= FLAG_BUS(9 downto 0); -- interrupt de, ctrl, mode bits
 						when "0110" | "0111" => -- context down change
 							case (current_mode_v) is -- current mode
 								when FIQ32_MODE        => MCR_CMSR <= SMSR_FIQ;
@@ -485,7 +495,7 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC031B"; -- core update date
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC031D"; -- core update date
 					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
 					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length

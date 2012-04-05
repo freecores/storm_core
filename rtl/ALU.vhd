@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #         Arithmetical/Logical/MCR_Access Unit        #
 -- # *************************************************** #
--- # Last modified: 26.03.2012                           #
+-- # Last modified: 04.04.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -130,7 +130,7 @@ begin
 					ALU_OUT <= OP_A xor OP_B;
 				when L_NOT => -- NOT: result = not(OP_A AND OP_B)
 					if (STORM_MODE = TRUE) then
-						ALU_OUT <= not(OP_A and OP_B);
+						ALU_OUT <= not(OP_A and OP_B); -- STORM_OP: NOT
 					else
 						ALU_OUT <= not OP_B; -- ARM_OP: MVN
 					end if;
@@ -231,9 +231,15 @@ begin
 					FLAG_O(1) <= is_xor_zero_v;
 					FLAG_O(2) <= OP_A(31) xor OP_B(31);
 					FLAG_O(3) <= MS_OVFL_REG;
-				-- Arithmetical Operations & Compares --
-				when others =>
-					FLAG_O(0) <= CARRY_OUT;
+				-- Arithmetical Sub Operations & Compare --
+				when A_SUB | A_RSB | A_SBC | A_RSC | A_CMP =>
+					FLAG_O(0) <= not CARRY_OUT; -- borrow flag
+					FLAG_O(1) <= is_add_zero_v;
+					FLAG_O(2) <= ADDER_RES(31);
+					FLAG_O(3) <= MS_OVFL_REG or OVFL_OUT; --(ADDER_RES(31) and (OP_A(31) xnor OP_B(31))) or MS_OVFL_REG
+				-- Arithmetical Add Operations & Compare --
+				when others => -- A_ADD | A_ADC | A_CMN
+					FLAG_O(0) <= CARRY_OUT; -- carry flag
 					FLAG_O(1) <= is_add_zero_v;
 					FLAG_O(2) <= ADDER_RES(31);
 					FLAG_O(3) <= MS_OVFL_REG or OVFL_OUT; --(ADDER_RES(31) and (OP_A(31) xnor OP_B(31))) or MS_OVFL_REG

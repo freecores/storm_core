@@ -37,10 +37,10 @@ entity STORM_TOP is
 -- ##       System Architecture Configuration                                                   ##
 -- ###############################################################################################
 
-				I_CACHE_PAGES     : natural := 4;  -- number of pages in I cache
+				I_CACHE_PAGES     : natural := 8;  -- number of pages in I cache
 				I_CACHE_PAGE_SIZE : natural := 32; -- page size in I cache
 				D_CACHE_PAGES     : natural := 8;  -- number of pages in D cache
-				D_CACHE_PAGE_SIZE : natural := 1;  -- page size in D cache
+				D_CACHE_PAGE_SIZE : natural := 32;  -- page size in D cache
 				BOOT_VECTOR       : STD_LOGIC_VECTOR(31 downto 0) := x"00000000"; -- boot address
 				IO_UC_BEGIN       : STD_LOGIC_VECTOR(31 downto 0) := x"00000000"; -- io begin address
 				IO_UC_END         : STD_LOGIC_VECTOR(31 downto 0) := x"00000000"  -- io end address

@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #              Machine Control System                 #
 -- # *************************************************** #
--- # Last modified: 29.03.2012                           #
+-- # Last modified: 13.05.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -265,6 +265,7 @@ begin
 			FLAG_BUS(SREG_Z_FLAG)  <= FLAG_I(1); -- Zero Flag
 			FLAG_BUS(SREG_N_FLAG)  <= FLAG_I(2); -- Negative Flag
 			FLAG_BUS(SREG_O_FLAG)  <= FLAG_I(3); -- Overflow Flag
+			FLAG_BUS(SREG_SHIN_M)  <= '0';
 			FLAG_BUS(SREG_FIQ_DIS) <= MCR_CMSR(SREG_FIQ_DIS); -- keep current interrupt settings
 			FLAG_BUS(SREG_IRQ_DIS) <= MCR_CMSR(SREG_IRQ_DIS); -- keep current interrupt settings
 			FLAG_BUS(SREG_DAB_DIS) <= MCR_CMSR(SREG_DAB_DIS); -- keep current interrupt settings
@@ -273,10 +274,10 @@ begin
 			--- Short Instruction Mode ---
 			if (CTRL_I(CTRL_EN) = '1') and (CTRL_I(CTRL_BX) = '1') and (SHIN_EN = TRUE) then
 				FLAG_BUS(SREG_SHIN_M) <= MCR_DATA_I(0);
-				INVALID_BX_REQ <= MCR_DATA_I(0);
+				INVALID_BX_REQ        <= MCR_DATA_I(0);
 			else
-				FLAG_BUS(SREG_SHIN_M) <= MCR_CMSR(0);
-				INVALID_BX_REQ <= '0';
+				FLAG_BUS(SREG_SHIN_M) <= MCR_CMSR(SREG_SHIN_M);
+				INVALID_BX_REQ        <= '0';
 			end if;
 
 			--- Priority 1: Data Fetch Abort ---
@@ -357,13 +358,13 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					MCR_PC   <= BOOT_VEC;    -- start-up address
-					MCR_CMSR <= x"000003DF"; -- all INTs disabled and we're in SYSTEM32 mode
-					SMSR_FIQ <= x"000003D0"; -- all INTs disabled and return to USER32 mode
-					SMSR_SVC <= x"000003D0"; -- all INTs disabled and return to USER32 mode
-					SMSR_ABT <= x"000003D0"; -- all INTs disabled and return to USER32 mode
-					SMSR_IRQ <= x"000003D0"; -- all INTs disabled and return to USER32 mode
-					SMSR_UND <= x"000003D0"; -- all INTs disabled and return to USER32 mode
-					SMSR_SYS <= x"000003D0"; -- all INTs disabled and return to USER32 mode
+					MCR_CMSR <= x"000003DF"; -- all INTs disabled and we are in SYSTEM32 mode
+					SMSR_FIQ <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
+					SMSR_SVC <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
+					SMSR_ABT <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
+					SMSR_IRQ <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
+					SMSR_UND <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
+					SMSR_SYS <= x"000003DF"; -- all INTs disabled and return to SYSTEM32 mode
 				elsif (G_HALT_I = '0') then
 
 
@@ -389,8 +390,10 @@ begin
 					cmsr_acc_case_v := CONT_EXE & CTRL_I(CTRL_EN) & cont_ret_v & mwr_cmsr_v;
 					case cmsr_acc_case_v is
 						when "1000" | "1001" | "1010" | "1011" | "1100" | "1101" | "1110" | "1111" =>
-							MCR_CMSR(9 downto 0) <= FLAG_BUS(9 downto 0); -- interrupt de, ctrl, mode bits
+							MCR_CMSR(09 downto 0) <= FLAG_BUS(09 downto 0); -- interrupt de, ctrl, mode bits
+--							MCR_CMSR(31 downto 0) <= FLAG_BUS(31 downto 0);
 						when "0110" | "0111" => -- context down change
+--						when "0110" | "0111" | "0010" | "0011" => -- context down change
 							case (current_mode_v) is -- current mode
 								when FIQ32_MODE        => MCR_CMSR <= SMSR_FIQ;
 								when Supervisor32_MODE => MCR_CMSR <= SMSR_SVC;
@@ -398,7 +401,7 @@ begin
 								when IRQ32_MODE        => MCR_CMSR <= SMSR_IRQ;
 								when Undefined32_MODE  => MCR_CMSR <= SMSR_UND;
 								when System32_MODE     => MCR_CMSR <= SMSR_SYS;
-								when others            => NULL;
+								when others            => MCR_CMSR <= MCR_CMSR;
 							end case;
 						when "0101" => -- manual write
 							if (current_mode_v = User32_MODE) or (CTRL_I(CTRL_MREG_FA) = '1') then -- restricted access for user mode
@@ -409,7 +412,7 @@ begin
 						when "0100" => -- automatic access
 							if (CTRL_I(CTRL_AF) = '1') then -- alter flags
 								MCR_CMSR <= FLAG_BUS(31 downto 0); -- update whole sreg
-							else
+							else -- keep flags
 								MCR_CMSR <= MCR_CMSR(31 downto 28) & FLAG_BUS(27 downto 0); -- update without flags
 							end if;
 						when others => -- keep CMSR
@@ -422,7 +425,7 @@ begin
 					case (smsr_acc_case_v) is
 						-- Content up-change --
 						when "100" | "101" | "110" | "111" =>
-							case (NEW_MODE) is
+							case (NEW_MODE) is -- save old machine status register
 								when FIQ32_MODE        => SMSR_FIQ <= MCR_CMSR;
 								when Supervisor32_MODE => SMSR_SVC <= MCR_CMSR;
 								when Abort32_MODE      => SMSR_ABT <= MCR_CMSR;
@@ -495,9 +498,9 @@ begin
 			if rising_edge(CLK_I) then
 				if (RST_I = '1') then
 					CP_REG_FILE <= (others => (others => '0')); -- clear all
-					CP_REG_FILE(CP_ID_REG_0) <= x"07DC031D"; -- core update date
-					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F"; -- My ID
-					CP_REG_FILE(CP_ID_REG_2) <= x"34373838"; -- My ID ;)
+					CP_REG_FILE(CP_ID_REG_0) <= x"07DC050D"; -- core update date
+					CP_REG_FILE(CP_ID_REG_1) <= x"53744E6F";
+					CP_REG_FILE(CP_ID_REG_2) <= x"34373838";
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_MBC_15 downto CSCR0_MBC_0) <= x"0100"; -- max cycle length
 					CP_REG_FILE(CP_SYS_CTRL_0)(CSCR0_PIO) <= '1'; -- IO area is protected
 				else
@@ -546,7 +549,7 @@ begin
 						end if;
 					end if;
 
-					-- Internal IO Register -------------------------------------------
+					-- Internal IO Register -------------------------------------------------------
 					CP_REG_FILE(CP_IO_PORT)(CP_IO_I_MSB downto CP_IO_I_LSB) <= IO_PORT_I;
 					if (G_HALT_I = '0') and (cr_w_acc_v = '1') and (cp_adr_v = CP_IO_PORT) then
 						CP_REG_FILE(CP_IO_PORT)(CP_IO_O_MSB downto CP_IO_O_LSB) <= MCR_DATA_I(CP_IO_O_MSB downto CP_IO_O_LSB);

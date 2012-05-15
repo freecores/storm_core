@@ -7,7 +7,7 @@
 -- # cache of the STORM Core processor to a pipelined   #
 -- # Wishbone compatible 32-bit bus system.             #
 -- # ************************************************** #
--- # Last modified: 17.03.2012                          #
+-- # Last modified: 05.05.2012                          #
 -- ######################################################
 
 library IEEE;
@@ -107,12 +107,6 @@ architecture Structure of BUS_UNIT is
 
 	-- Architecture Constants --
 	constant WB_PIPE_EN     : boolean := FALSE;
-
-	-- Wishbone Cycle Types --
-	constant WB_CLASSIC_CYC : STD_LOGIC_VECTOR(2 downto 0) := "000"; -- classic cycle
-	constant WB_CON_BST_CYC : STD_LOGIC_VECTOR(2 downto 0) := "001"; -- constant address burst
-	constant WB_INC_BST_CYC : STD_LOGIC_VECTOR(2 downto 0) := "010"; -- incrementing address burst
-	constant WB_BST_END_CYC : STD_LOGIC_VECTOR(2 downto 0) := "111"; -- burst end
 
 	-- Arbiter FSM --
 	type   ARB_STATE_TYPE is (IDLE, ASSIGN_D_PAGE, UPLOAD_D_PAGE, IO_REQUEST, DOWNLOAD_I_PAGE, DOWNLOAD_D_PAGE, END_TRANSFER);

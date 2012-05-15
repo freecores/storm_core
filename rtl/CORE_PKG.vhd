@@ -5,7 +5,7 @@
 -- #  This file contains all needed components and       #
 -- #  system parameters for the STORM Core processor.    #
 -- # +-------------------------------------------------+ #
--- # Last modified: 29.03.2012                           #
+-- # Last modified: 03.05.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -35,6 +35,13 @@ package STORM_core_package is
 	constant C_LR_ADR         : STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- Link Register = R14
 	constant C_PC_ADR         : STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- Prog. Counter = R15
 	constant SYS_CP_ADR       : STD_LOGIC_VECTOR(3 downto 0) := "1111"; -- system coprocessor
+
+  -- WISHBONE CYCLE TYPES -------------------------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+	constant WB_CLASSIC_CYC   : STD_LOGIC_VECTOR(2 downto 0) := "000"; -- classic cycle
+	constant WB_CON_BST_CYC   : STD_LOGIC_VECTOR(2 downto 0) := "001"; -- constant address burst
+	constant WB_INC_BST_CYC   : STD_LOGIC_VECTOR(2 downto 0) := "010"; -- incrementing address burst
+	constant WB_BST_END_CYC   : STD_LOGIC_VECTOR(2 downto 0) := "111"; -- burst end
 
   -- OPERAND ADR BUS LOCATIONS --------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -93,7 +100,7 @@ package STORM_core_package is
 	constant CTRL_COND_3      : natural := 15; -- condition code bit 3
 
 	constant CTRL_MS          : natural := 16; -- '0' = shift, '1' = multiply
-	constant CTRL_AF          : natural := 17; -- alter flags
+	constant CTRL_AF          : natural := 17; -- alter flags / reload cmsr
 	constant CTRL_ALU_FS_0    : natural := 18; -- alu function set bit 0
 	constant CTRL_ALU_FS_1    : natural := 19; -- alu function set bit 1
 	constant CTRL_ALU_FS_2    : natural := 20; -- alu function set bit 2
@@ -239,7 +246,6 @@ package STORM_core_package is
   -- COOL WORKING MUSIC ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
 	-- Carrie Underwood - Last Name
-	-- Sugarland - Something More
 	-- Taylor Swift - Today Was A Fairy Tale
 	-- Montgomery Gentry - One In Every Crowd
 	-- Tim McGraw - Something Like That
@@ -263,11 +269,19 @@ package STORM_core_package is
 	-- Montgomery Gentry - Where I Come From
 	-- Dixie Chicks - Ready To Run
 	-- Eagle-Eye Cherry - Skull Tattoo
-	-- Jake Owen - Barefoot Blue Jean Night
 	-- Keith Urban - You Gonna Fly
 	-- Miranda Lambert - Baggage Claim
 	-- Diamond Rio - Meet In The Middle
 	-- Lost Trailers - How 'Bout You Don't
+	-- Alabama - Song of The South
+	-- Chris Cagle - What Kinda Gone
+	-- Jerrod Niemann - Lover, Lover
+	-- Tim McGraw - Where The Green Grass Grows
+	-- Kenny Chesney - I Go Back
+	-- The Band Perry - Postcard From Paris
+	-- Chris Cagle - Got My Country On
+	-- Kenny Chesney - Summertime
+	-- Montgomery Gentry - Something To Be Proud Of
 
   -- INTERNAL MNEMONICS ---------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
@@ -344,7 +358,7 @@ package STORM_core_package is
 			);
   end component;
 
-  -- COMPONENT Operant Unit -----------------------------------------------------------------
+  -- COMPONENT Operand Unit -----------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   component OPERAND_UNIT
 	 port	(

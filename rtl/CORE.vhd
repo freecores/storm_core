@@ -8,11 +8,11 @@
 -- # - CORE.vhd (this file)              |                                                               #
 -- #   + STORM_CORE.vhd (package file)   +---------------------------------------------------------------#
 -- #   - REG_FILE.vhd                    |                                                               #
--- #   - OPERANT_UNIT.vhd                |   SSSS TTTTT  OOO  RRRR  M   M        CCCC  OOO  RRRR  EEEEE  #
--- #   - MS_UNIT.vhd                     |  S       T   O   O R   R MM MM       C     O   O R   R E      #
--- #     - MULTIPLY_UNIT.vhd             |   SSS    T   O   O RRRR  M M M  ###  C     O   O RRRR   EEE   #
--- #   -   BARREL_SHIFTER.vhd            |      S   T   O   O R  R  M   M       C     O   O R  R  E      #
--- #   - ALU.vhd                         |  SSSS    T    OOO  R   R M   M        CCCC  OOO  R   R EEEEE  #
+-- #   - OPERANT_UNIT.vhd                |   SSSS TTTTT  OOO  RRRR  M   M        CCC  OOO  RRRR  EEEEE   #
+-- #   - MS_UNIT.vhd                     |  S       T   O   O R   R MM MM       C    O   O R   R E       #
+-- #     - MULTIPLY_UNIT.vhd             |   SSS    T   O   O RRRR  M M M  ###  C    O   O RRRR   EEE    #
+-- #   -   BARREL_SHIFTER.vhd            |      S   T   O   O R  R  M   M       C    O   O R  R  E       #
+-- #   - ALU.vhd                         |  SSSS    T    OOO  R   R M   M        CCC  OOO  R   R EEEEE   #
 -- #   - FLOW_CTRL.vhd                   |                                                               #
 -- #   - WB_UNIT.vhd                     +-------------------------------------------------------------- #
 -- #   - MC_SYS.vhd                      | The STORM Core Processor was created by Stephan Nolting       #
@@ -21,7 +21,7 @@
 -- #                                     | -> stnolting@googlemail.com                                   #
 -- #                                     | -> stnolting@web.de                                           #
 -- # *************************************************************************************************** #
--- # Last modified: 17.03.2012                                                                           #
+-- # Last modified: 29.04.2012                                                                           #
 -- #######################################################################################################
 
 library IEEE;

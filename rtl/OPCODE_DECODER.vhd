@@ -3,7 +3,7 @@
 -- # *************************************************** #
 -- #           ARM-Native OPCODE Decoding Unit           #
 -- # *************************************************** #
--- # Last modified: 29.03.2012                           #
+-- # Last modified: 13.05.2012                           #
 -- #######################################################
 
 library IEEE;
@@ -602,7 +602,7 @@ begin
 
 						--- Special functions ---
 						DEC_CTRL(CTRL_AF)     <=      INSTR_REG(20)  and INSTR_REG(22) and      pc_in_list_v;  -- copy SMSR => CMSR when transf. the PC
-						DEC_CTRL(CTRL_RD_USR) <= (not INSTR_REG(20)) and INSTR_REG(22);                        -- read regs from user bank
+						DEC_CTRL(CTRL_RD_USR) <= (not INSTR_REG(20)) and INSTR_REG(22)                       ; -- read regs from user bank
 						DEC_CTRL(CTRL_WR_USR) <=      INSTR_REG(20)  and INSTR_REG(22) and (not pc_in_list_v); -- write regs to user bank
 
 						--- The memory access itself ---
@@ -633,12 +633,14 @@ begin
 							end loop;
 
 							-- Control for BASE' write back --
-							DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= INSTR_REG(31 downto 28); -- enable wb cycle if wanted
+							DEC_CTRL(CTRL_COND_3 downto CTRL_COND_0) <= INSTR_REG(31 downto 28);
 							DEC_CTRL(CTRL_RD_3 downto CTRL_RD_0)     <= INSTR_REG(19 downto 16); -- R_DEST = BASE
 							DEC_CTRL(CTRL_WB_EN)                     <= INSTR_REG(21); -- WB EN
 							NEXT_DUAL_OP                             <= "00001"; -- prepare for start
 							REG_SEL(OP_C_IS_REG)                     <= '0';
 							DEC_CTRL(CTRL_MEM_ACC)                   <= '0'; -- no memory access, thank you
+							DEC_CTRL(CTRL_RD_USR)                    <= '0'; -- read regs from current bank
+							DEC_CTRL(CTRL_WR_USR)                    <= '0'; -- write regs to current bank
 							if (INSTR_REG(23) = '0') then -- sub index
 								DEC_CTRL(CTRL_ALU_FS_3 downto CTRL_ALU_FS_0) <= A_SUB; -- ALU_CTRL = SUB
 							else -- add index
@@ -687,9 +689,10 @@ begin
 
 				when others => -- COPROCESSOR REGISTER TRANSFER / SOFTWARE INTERRUPT
 				-- ============================================================================================
-					DEC_CTRL(CTRL_SWI) <= INSTR_REG(25) and INSTR_REG(24); -- SOFTWARE INTERRUPT
+					if (INSTR_REG(25 downto 24) = "11") then
+						DEC_CTRL(CTRL_SWI) <= '1'; -- SOFTWARE INTERRUPT
 
-					if (INSTR_REG(25 downto 24) = "10") and (INSTR_REG(11 downto 8) = SYS_CP_ADR) and (INSTR_REG(4) = '1') then -- CP #15 action
+					elsif (INSTR_REG(25 downto 24) = "10") and (INSTR_REG(11 downto 8) = SYS_CP_ADR) and (INSTR_REG(4) = '1') then -- CP #15 action
 						DEC_CTRL(CTRL_CP_ACC) <= '1'; -- coprocessor access
 						DEC_CTRL(CTRL_CP_RW)  <= not INSTR_REG(20); -- read/write
 						DEC_CTRL(CTRL_CP_REG_3 downto CTRL_CP_REG_0) <= INSTR_REG(19 downto 16);
